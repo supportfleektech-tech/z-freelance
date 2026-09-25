@@ -2,7 +2,7 @@
   "name": "z-freelance",
   "version": "1.0.0",
   "private": true,
-  "description": "z-freelance \u2014 an end-to-end freelance marketplace: projects, proposals, escrow-backed contracts, messaging, reviews and admin moderation.",
+  "description": "z-freelance — an end-to-end freelance marketplace: projects, proposals, escrow-backed contracts, messaging, reviews and admin moderation.",
   "license": "MIT",
   "engines": {
     "node": ">=20.11.0"

@@ -26,7 +26,7 @@ let projectId = "";
 let contractId = "";
 
 beforeAll(async () => {
-  const database = await getDb();
+  await getDb(); // initialize the embedded database singleton before migrating
   const client = (await __rawClient()) as PGlite;
   await migrate(drizzlePglite(client, { schema }) as never, { migrationsFolder: "drizzle" });
 
@@ -74,8 +74,7 @@ describe("thread anchoring", () => {
 
     // Regression: caller-derived counterparty must flip by caller, not hardcode the client.
     const asClient = anchor!.partyAId === clientId ? anchor!.partyBId : anchor!.partyAId;
-    const asFreelancer =
-      anchor!.partyAId === freelancerId ? anchor!.partyBId : anchor!.partyAId;
+    const asFreelancer = anchor!.partyAId === freelancerId ? anchor!.partyBId : anchor!.partyAId;
     expect(asClient).toBe(freelancerId);
     expect(asFreelancer).toBe(clientId);
   });

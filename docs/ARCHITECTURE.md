@@ -30,7 +30,7 @@ Two flows touch the same service layer:
 
 - **Read path** — server components call services directly. No HTTP hop, no serialization
   of models that the DB can stay authoritative about.
-- **Write path** — client components call the REST API, which is deliberately *thin*: parse +
+- **Write path** — client components call the REST API, which is deliberately _thin_: parse +
   validate → call the same services → return the standard envelope.
 
 If a rule only exists in one of these two paths, it's a bug. That rule lives in services.
@@ -39,9 +39,9 @@ If a rule only exists in one of these two paths, it's a bug. That rule lives in 
 
 ### 2.1 One schema, two interchangeable drivers
 
-| Environment | Driver | How |
-| --- | --- | --- |
-| Production | `node-postgres` (`pg`, pool) | `DATABASE_URL` set |
+| Environment      | Driver                                 | How                  |
+| ---------------- | -------------------------------------- | -------------------- |
+| Production       | `node-postgres` (`pg`, pool)           | `DATABASE_URL` set   |
 | Dev / CI / tests | **PGlite** (Postgres compiled to WASM) | `DATABASE_URL` unset |
 
 Why: it kills "works against the mock, dies against the real thing". The integration tests run the
@@ -166,13 +166,13 @@ Multi-stage Dockerfile (`deps → builder → runner`):
 
 ## 8. Known tradeoffs and the roadmap
 
-| Decision now | When to revisit |
-| --- | --- |
-| In-process rate limiting | multi-instance deployment → Redis `INCR+EXPIRE` (same call-site) |
-| Polling notifications (30s) | high-frequency ops → SSE or WS gateway |
-| Simulated payment acceptance/payout rails | add a payments adapter behind `fundMilestone`/`markPayoutPaid` |
-| Single workspace thread reuse heuristic | high message volume → explicit thread-per-contract |
-| Deletion via FK cascades | strong privacy needs → retention/anonymisation jobs |
-| PGlite for dev | team needs seeded staging data parity → shared staging Postgres (swap env var) |
+| Decision now                              | When to revisit                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| In-process rate limiting                  | multi-instance deployment → Redis `INCR+EXPIRE` (same call-site)               |
+| Polling notifications (30s)               | high-frequency ops → SSE or WS gateway                                         |
+| Simulated payment acceptance/payout rails | add a payments adapter behind `fundMilestone`/`markPayoutPaid`                 |
+| Single workspace thread reuse heuristic   | high message volume → explicit thread-per-contract                             |
+| Deletion via FK cascades                  | strong privacy needs → retention/anonymisation jobs                            |
+| PGlite for dev                            | team needs seeded staging data parity → shared staging Postgres (swap env var) |
 
 The seams for each of these were deliberately left clean; none requires a reshaping rewrite.

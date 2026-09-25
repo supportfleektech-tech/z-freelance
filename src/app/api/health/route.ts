@@ -23,7 +23,7 @@ export async function GET() {
       version: process.env.npm_package_version ?? "1.0.0",
       driver: await dbDriver(),
       database: "up",
-      dataDir: (await dbDriver()) === "pglite" ? process.env.PGLITE_DATA_DIR ?? ".pgdata" : null,
+      dataDir: (await dbDriver()) === "pglite" ? (process.env.PGLITE_DATA_DIR ?? ".pgdata") : null,
       latencyMs: Date.now() - startedAt,
       time: new Date().toISOString(),
     });

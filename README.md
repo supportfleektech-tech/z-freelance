@@ -22,16 +22,16 @@ PENDING ──fund──▶ FUNDED ──submit──▶ SUBMITTED ──approve
 
 ## Stack
 
-| Layer | Choice | Reason |
-| --- | --- | --- |
-| Framework | **Next.js 15 App Router** | Server Components read from the DB directly; client components only exist where there's interactivity |
-| Language | **TypeScript, strict** | `noUncheckedIndexedAccess` on; no `any` in product code |
-| Database | **Postgres via Drizzle ORM** | Typed SQL, real migrations. Runs on **real Postgres** (`DATABASE_URL`) or **PGlite** (Postgres in WASM) locally/CI — same schema, same SQL |
-| Auth | **bcrypt + JWT (jose)** | httpOnly cookie sessions; authorisation re-checked against the DB row on every request so suspension is instant |
-| Validation | **Zod (strict)** | Shared schemas for API + UI; unknown keys rejected |
-| UI | **Tailwind CSS** | Design tokens in `tailwind.config.ts`, component classes in `globals.css` |
-| Tests | **Vitest** | 55 unit tests + 15-test integration suite driving the whole escrow flow against real Postgres |
-| Deploy | **Docker multi-stage + Compose** | ~200MB image, Postgres 16 service, entrypoint auto-migrates, health checks |
+| Layer      | Choice                           | Reason                                                                                                                                     |
+| ---------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Framework  | **Next.js 15 App Router**        | Server Components read from the DB directly; client components only exist where there's interactivity                                      |
+| Language   | **TypeScript, strict**           | `noUncheckedIndexedAccess` on; no `any` in product code                                                                                    |
+| Database   | **Postgres via Drizzle ORM**     | Typed SQL, real migrations. Runs on **real Postgres** (`DATABASE_URL`) or **PGlite** (Postgres in WASM) locally/CI — same schema, same SQL |
+| Auth       | **bcrypt + JWT (jose)**          | httpOnly cookie sessions; authorisation re-checked against the DB row on every request so suspension is instant                            |
+| Validation | **Zod (strict)**                 | Shared schemas for API + UI; unknown keys rejected                                                                                         |
+| UI         | **Tailwind CSS**                 | Design tokens in `tailwind.config.ts`, component classes in `globals.css`                                                                  |
+| Tests      | **Vitest**                       | 55 unit tests + 15-test integration suite driving the whole escrow flow against real Postgres                                              |
+| Deploy     | **Docker multi-stage + Compose** | ~200MB image, Postgres 16 service, entrypoint auto-migrates, health checks                                                                 |
 
 ## The domain model (18 tables)
 
@@ -54,13 +54,13 @@ npm run dev                         # http://localhost:3000
 
 **Demo accounts** (password `Password123!`):
 
-| Role | Email | What you'll see |
-| --- | --- | --- |
-| Client | `amara@northwind.io` | A completed $10,500 contract, reviews, proposals to triage |
-| Client | `priya@lumenhealth.org` | Live escrow: one milestone fundable/approvable right now |
-| Freelancer | `sofia.freelance@example.com` | $9,450 in-wallet from released escrow; request a payout |
-| Freelancer | `hana.freelance@example.com` | Delivery awaiting client review — funds locked in escrow |
-| Admin | `admin@zfreelance.dev` | Platform KPIs, dispute queue, payout ops, user moderation |
+| Role       | Email                         | What you'll see                                            |
+| ---------- | ----------------------------- | ---------------------------------------------------------- |
+| Client     | `amara@northwind.io`          | A completed $10,500 contract, reviews, proposals to triage |
+| Client     | `priya@lumenhealth.org`       | Live escrow: one milestone fundable/approvable right now   |
+| Freelancer | `sofia.freelance@example.com` | $9,450 in-wallet from released escrow; request a payout    |
+| Freelancer | `hana.freelance@example.com`  | Delivery awaiting client review — funds locked in escrow   |
+| Admin      | `admin@zfreelance.dev`        | Platform KPIs, dispute queue, payout ops, user moderation  |
 
 **Try the core flow in 2 minutes:** sign in as `priya@lumenhealth.org` → open the dispute-free contract in dashboard → approve the submitted milestone → sign in as `hana.freelance@example.com` → see the wallet credit + ledger entries.
 
@@ -105,14 +105,14 @@ Ops: `GET /api/health` (reports driver: `postgres` | `pglite`, db latency)
 
 Everything is validated at boot (`src/lib/env.ts`) and documented in `.env.example`. Highlights:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `DATABASE_URL` | _(unset → embedded PGlite)_ | Real Postgres connection string |
-| `PGLITE_DATA_DIR` | `.pgdata` | Embedded Postgres location |
-| `SESSION_SECRET` | dev-only | **Required in production** — signs JWT sessions |
-| `PLATFORM_FEE_BPS` | `1000` | Platform take rate in basis points (10%) |
-| `PASSWORD_ROUNDS` | `12` | bcrypt cost |
-| `MIN_BID_CENTS` | `500` | Minimum proposal bid |
+| Variable           | Default                     | Purpose                                         |
+| ------------------ | --------------------------- | ----------------------------------------------- |
+| `DATABASE_URL`     | _(unset → embedded PGlite)_ | Real Postgres connection string                 |
+| `PGLITE_DATA_DIR`  | `.pgdata`                   | Embedded Postgres location                      |
+| `SESSION_SECRET`   | dev-only                    | **Required in production** — signs JWT sessions |
+| `PLATFORM_FEE_BPS` | `1000`                      | Platform take rate in basis points (10%)        |
+| `PASSWORD_ROUNDS`  | `12`                        | bcrypt cost                                     |
+| `MIN_BID_CENTS`    | `500`                       | Minimum proposal bid                            |
 
 ## Repository layout
 
