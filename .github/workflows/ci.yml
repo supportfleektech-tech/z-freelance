@@ -80,7 +80,7 @@ jobs:
           echo "server did not become healthy" >&2
           exit 1
 
-      - name: Smoke: health, landing, marketplace API, seeded login
+      - name: "Smoke: health, landing, marketplace API, seeded login"
         run: |
           set -e
           curl -sf http://localhost:3000/api/health | grep -q '"database":"up"'
