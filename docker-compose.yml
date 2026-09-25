@@ -1,0 +1,52 @@
+name: z-freelance
+
+# Full production topology locally:
+#   db  — Postgres 16 with a named volume and a healthcheck
+#   app — the image built from this repo, waiting on a healthy db
+#
+#   docker compose up --build
+#
+# Seeding (optional, from the host):
+#   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zfreelance npm run db:seed
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: zfreelance
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zfreelance"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/zfreelance
+      SESSION_SECRET: ${SESSION_SECRET:-local-dev-only-change-me-in-prod}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      PLATFORM_FEE_BPS: "1000"
+      PASSWORD_ROUNDS: "12"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  db-data:
