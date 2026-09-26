@@ -9,7 +9,9 @@
  * Run with: npm run db:seed        (skips if already seeded)
  *           FORCE_SEED=1 npm run db:seed   (wipes and reseeds)
  */
+import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
+import { env } from "@/lib/env";
 import { db as getDb } from "@/lib/db";
 import { categories, milestones, reviews, skills, users, wallets } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/auth/password";
@@ -182,6 +184,13 @@ async function wipe(db: Awaited<ReturnType<typeof getDb>>): Promise<void> {
   console.log("[seed] FORCE_SEED set — clearing existing rows");
   await db.execute(sql`truncate table users restart identity cascade`);
   await db.execute(sql`truncate table categories, skills restart identity cascade`);
+
+  // Uploaded bytes are not referenced by the DB cascade — clear them too, so
+  // a reseed leaves no orphaned files behind.
+  const { rm } = await import("node:fs/promises");
+  const uploadDir = path.resolve(env().UPLOAD_DIR);
+  await rm(uploadDir, { recursive: true, force: true }).catch(() => undefined);
+  console.log(`[seed] wiped upload directory ${uploadDir}`);
 }
 
 async function seed(): Promise<void> {

@@ -12,7 +12,14 @@ import {
   uploadQuerySchema,
 } from "@/lib/validation/files";
 import { sendMessageSchema } from "@/lib/validation/social";
-import { INLINE_MIMES, MIME_EXTENSIONS, sanitizeFileName } from "@/server/services/storage.service";
+import { safeInternalPath } from "@/lib/utils";
+import { isSessionFresh } from "@/lib/auth/session";
+import {
+  bytesMatchMime,
+  INLINE_MIMES,
+  MIME_EXTENSIONS,
+  sanitizeFileName,
+} from "@/server/services/storage.service";
 
 const uuid = "00000000-0000-4000-8000-000000000001";
 
@@ -107,5 +114,85 @@ describe("storage policy helpers", () => {
     expect(MIME_EXTENSIONS.has("application/x-msdownload")).toBe(false);
     expect(MIME_EXTENSIONS.has("text/html")).toBe(false);
     expect(MIME_EXTENSIONS.has("image/svg+xml")).toBe(false);
+  });
+});
+
+describe("content sniffing (bytesMatchMime)", () => {
+  it("accepts genuine signatures", () => {
+    expect(
+      bytesMatchMime(
+        "image/png",
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]),
+      ),
+    ).toBe(true);
+    expect(bytesMatchMime("image/jpeg", Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]))).toBe(true);
+    expect(bytesMatchMime("application/pdf", Buffer.from("%PDF-1.7\n"))).toBe(true);
+    expect(bytesMatchMime("application/zip", Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x01]))).toBe(
+      true,
+    );
+    expect(
+      bytesMatchMime(
+        "image/webp",
+        Buffer.from([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]),
+      ),
+    ).toBe(true);
+    expect(bytesMatchMime("text/plain", Buffer.from("hello world\n"))).toBe(true);
+    expect(bytesMatchMime("text/csv", Buffer.from("a,b,c\n1,2,3\n"))).toBe(true);
+  });
+
+  it("rejects masquerading content", () => {
+    // An EXE renamed to .png must not pass as an image.
+    expect(bytesMatchMime("image/png", Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03]))).toBe(false);
+    // A truncated signature is not a signature.
+    expect(bytesMatchMime("application/zip", Buffer.from("PK"))).toBe(false);
+    // RIFF ≠ WEBP (could be a WAV).
+    expect(
+      bytesMatchMime(
+        "image/webp",
+        Buffer.from([0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x41, 0x56, 0x45]),
+      ),
+    ).toBe(false);
+    // Binary glued into a "text" upload.
+    expect(bytesMatchMime("text/plain", Buffer.from([0x68, 0x69, 0x00, 0x01]))).toBe(false);
+    expect(bytesMatchMime("text/markdown", Buffer.from([0x50, 0x4b, 0x03, 0x04]))).toBe(false);
+  });
+});
+
+describe("safeInternalPath", () => {
+  it("keeps genuine internal paths intact", () => {
+    expect(safeInternalPath("/dashboard/saved")).toBe("/dashboard/saved");
+    expect(safeInternalPath("/projects?skill=dbt#top")).toBe("/projects?skill=dbt#top");
+    expect(safeInternalPath("/")).toBe("/");
+  });
+
+  it("neutralizes external and malformed targets", () => {
+    expect(safeInternalPath("https://evil.example/phish", "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath("//evil.example/path", "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath("javascript:alert(1)", "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath("dashboard/saved", "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath("/\\evil", "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath(null, "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath(undefined, "/dashboard")).toBe("/dashboard");
+    expect(safeInternalPath("", "/dashboard")).toBe("/dashboard");
+  });
+});
+
+describe("isSessionFresh", () => {
+  it("honours the invalidation watermark at whole-second granularity", () => {
+    expect(isSessionFresh(null, 0)).toBe(true);
+    const cut = new Date("2026-09-26T12:00:00Z");
+    const cutSec = cut.getTime() / 1000;
+    expect(isSessionFresh(cut, cutSec - 1)).toBe(false);
+    expect(isSessionFresh(cut, cutSec)).toBe(true);
+    expect(isSessionFresh(cut, cutSec + 60)).toBe(true);
+  });
+
+  it("grants a same-second grace window (JWT iat has second precision)", () => {
+    // Watermark has millisecond precision; comparison floors it.
+    const cut = new Date("2026-09-26T12:00:00.500Z");
+    const secondBefore = Math.floor(cut.getTime() / 1000) - 1;
+    const sameSecond = Math.floor(cut.getTime() / 1000);
+    expect(isSessionFresh(cut, secondBefore)).toBe(false);
+    expect(isSessionFresh(cut, sameSecond)).toBe(true);
   });
 });

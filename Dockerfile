@@ -48,6 +48,7 @@ COPY --from=builder --chown=zfreelance:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=zfreelance:nodejs /app/public ./public
 COPY --chown=zfreelance:nodejs drizzle ./drizzle
 COPY --chown=zfreelance:nodejs scripts/migrate.mjs ./scripts/migrate.mjs
+COPY --chown=zfreelance:nodejs scripts/gc-uploads.mjs ./scripts/gc-uploads.mjs
 COPY --chown=zfreelance:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --chown=zfreelance:nodejs package.json ./package.json
 

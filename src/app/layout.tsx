@@ -11,6 +11,24 @@ export const metadata: Metadata = {
   description:
     "z-freelance is a freelance marketplace with milestone escrow: clients fund work in advance, freelancers get paid the moment their delivery is approved.",
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
+  applicationName: "z-freelance",
+  openGraph: {
+    type: "website",
+    siteName: "z-freelance",
+    title: "z-freelance — hire freelancers with money held in escrow",
+    description:
+      "A freelance marketplace with milestone escrow: fund work in advance, release payment the moment delivery is approved.",
+  },
+  twitter: {
+    card: "summary",
+    title: "z-freelance — milestone-escrow freelance marketplace",
+    description:
+      "Clients fund work in advance; freelancers get paid the moment delivery is approved.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export const dynamic = "force-dynamic";

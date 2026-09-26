@@ -134,6 +134,11 @@ export const users = pgTable(
      * means "don't create message notifications". Missing keys mean enabled.
      */
     notificationPrefs: jsonb("notification_prefs").$type<Record<string, boolean>>(),
+    /**
+     * When set, session tokens issued BEFORE this instant are rejected.
+     * Bumped on password change and administrative suspension.
+     */
+    sessionsInvalidatedAt: timestamp("sessions_invalidated_at", { withTimezone: true }),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

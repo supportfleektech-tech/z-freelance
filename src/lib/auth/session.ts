@@ -58,6 +58,22 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
   }
 }
 
+/**
+ * Is a token issued at `iatSeconds` still alive for this user row?
+ * Pure rule, separated from cookie plumbing so it can be unit-tested:
+ * any token issued before `sessionsInvalidatedAt` is dead, even if unexpired.
+ *
+ * Comparison is at whole-second granularity (JWT `iat` has second precision
+ * while Postgres timestamps have milliseconds): the watermark is floored to
+ * its whole second. A token sharing that second survives ≤ 1s longer than the
+ * revocation — the deliberate trade for never locking out a user who changes
+ * their password and immediately logs back in within the same second.
+ */
+export function isSessionFresh(invalidatedAt: Date | null, iatSeconds: number): boolean {
+  if (!invalidatedAt) return true;
+  return iatSeconds >= Math.floor(invalidatedAt.getTime() / 1000);
+}
+
 /** Read the session cookie inside a Server Component / Route Handler. */
 export async function readSessionToken(): Promise<string | null> {
   const store = await cookies();

@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, notExists, sql } from "drizzle-orm";
 import { db as getDb, type DbOrTx } from "@/lib/db";
 import {
   attachments,
   contracts,
   messages,
   milestones,
+  portfolioItems,
   threads,
   type Attachment,
   type AttachmentContext,
@@ -56,6 +57,77 @@ export const INLINE_MIMES = new Set([
   "image/gif",
   "application/pdf",
 ]);
+
+/**
+ * Magic-byte signatures for the binary types we accept. `PK` archives cover
+ * zip/docx/xlsx; the OLE magic covers legacy .doc. Types without a reliable
+ * signature (plain text formats) are guarded against binary masquerading by
+ * the NUL-byte rule below instead.
+ */
+const MAGIC_SIGNATURES: Record<string, number[][]> = {
+  "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  "image/jpeg": [[0xff, 0xd8, 0xff]],
+  "image/gif": [
+    [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], // GIF87a
+    [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
+  ],
+  "application/pdf": [[0x25, 0x50, 0x44, 0x46, 0x2d]], // "%PDF-"
+  "application/zip": [[0x50, 0x4b, 0x03, 0x04]],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+    [0x50, 0x4b, 0x03, 0x04],
+  ],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [[0x50, 0x4b, 0x03, 0x04]],
+  "application/msword": [[0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]],
+};
+
+const TEXT_MIMES = new Set(["text/plain", "text/markdown", "text/csv"]);
+
+/**
+ * Does the file's actual content plausibly match the declared MIME? A client
+ * can trivially lie about the type field; this check is what stops
+ * `malware.exe` being stored and later served as `image/png` with an inline
+ * disposition.
+ */
+export function bytesMatchMime(mimeType: string, bytes: Buffer | Uint8Array): boolean {
+  const signatures = MAGIC_SIGNATURES[mimeType];
+  if (signatures) {
+    return signatures.some(
+      (sig) => bytes.byteLength >= sig.length && sig.every((byte, index) => bytes[index] === byte),
+    );
+  }
+  if (TEXT_MIMES.has(mimeType)) {
+    const head = bytes.subarray(0, Math.min(bytes.byteLength, 4096));
+    // Real text never contains a NUL byte in its head…
+    if (head.includes(0x00)) return false;
+    // …and real text never opens with a known binary container signature.
+    for (const signatures of Object.values(MAGIC_SIGNATURES)) {
+      if (
+        signatures.some(
+          (sig) =>
+            bytes.byteLength >= sig.length && sig.every((byte, index) => bytes[index] === byte),
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+  // webp: RIFF container (magic above) + "WEBP" fourcc at offset 8
+  if (mimeType === "image/webp") {
+    return (
+      bytes.byteLength >= 12 &&
+      bytes[0] === 0x52 && // R
+      bytes[1] === 0x49 && // I
+      bytes[2] === 0x46 && // F
+      bytes[3] === 0x46 && // F
+      bytes[8] === 0x57 && // W
+      bytes[9] === 0x45 && // E
+      bytes[10] === 0x42 && // B
+      bytes[11] === 0x50 // P
+    );
+  }
+  return true;
+}
 
 export function isImageMime(mimeType: string): boolean {
   return mimeType.startsWith("image/");
@@ -112,6 +184,9 @@ export async function storeUpload(input: StoreUploadInput): Promise<Attachment> 
     throw ApiError.unprocessable(
       `Files are limited to ${Math.floor(config.uploadMaxBytes / (1024 * 1024))} MB.`,
     );
+  }
+  if (!bytesMatchMime(mime, input.data)) {
+    throw ApiError.unprocessable("The file's contents do not match its declared type.");
   }
 
   const storageKey = `${randomUUID()}${extension}`;
@@ -323,4 +398,54 @@ export async function deleteOwnedAttachmentQuietly(
   if (!row) return;
   await dbOrTx.delete(attachments).where(eq(attachments.id, row.id));
   await unlink(storagePath(row.storageKey)).catch(() => undefined);
+}
+
+/**
+ * Garbage-collect abandoned uploads: files that were uploaded but never
+ * linked to a post (composer closed, form abandoned) and not referenced by a
+ * saved portfolio item. Rows AND bytes are removed. Returns the count swept.
+ *
+ * Safe by construction: anything reachable from a message, a milestone or a
+ * portfolio item is untouchable, whatever its age.
+ */
+export async function gcOrphanedUploads(olderThan: Date): Promise<number> {
+  const database = await getDb();
+  const orphans = await database
+    .select({ id: attachments.id, storageKey: attachments.storageKey })
+    .from(attachments)
+    .where(
+      and(
+        isNull(attachments.messageId),
+        isNull(attachments.milestoneId),
+        lt(attachments.createdAt, olderThan),
+        // A PORTFOLIO upload referenced by a saved item is in use, not an orphan.
+        notExists(
+          database
+            .select({ one: sql`1` })
+            .from(portfolioItems)
+            .where(eq(portfolioItems.imageAttachmentId, attachments.id)),
+        ),
+      ),
+    );
+
+  if (orphans.length === 0) return 0;
+
+  await database.delete(attachments).where(
+    inArray(
+      attachments.id,
+      orphans.map((o) => o.id),
+    ),
+  );
+
+  const dir = uploadDirPath();
+  let swept = 0;
+  for (const orphan of orphans) {
+    try {
+      await unlink(path.join(dir, orphan.storageKey));
+      swept += 1;
+    } catch {
+      // Bytes already gone (manual cleanup, disk issue) — the row is what mattered.
+    }
+  }
+  return swept;
 }

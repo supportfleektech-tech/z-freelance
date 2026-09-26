@@ -108,7 +108,13 @@ export async function changePassword(
 
   await database
     .update(users)
-    .set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() })
+    .set({
+      passwordHash: await hashPassword(newPassword),
+      // Every existing session dies at the next request — including the one
+      // an attacker might hold. The caller re-authenticates afterwards.
+      sessionsInvalidatedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, userId));
 }
 
@@ -243,7 +249,14 @@ export async function setUserStatus(
 
   const [updated] = await database
     .update(users)
-    .set({ status, updatedAt: new Date() })
+    .set({
+      status,
+      // Suspension must cut existing sessions off immediately, not at the
+      // token's own expiry. Deliberately NOT cleared on reactivation — a
+      // token issued before the suspension never comes back to life.
+      ...(status === "SUSPENDED" ? { sessionsInvalidatedAt: new Date() } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, userId))
     .returning();
 

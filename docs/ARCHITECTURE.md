@@ -105,6 +105,13 @@ directly, which means it cannot drift.
   **suspension and deletion revoke access on the next request**, not at token expiry.
 - bcrypt cost 12 (4 in tests), constant-work dummy hash when the email is unknown (no enumeration),
   rate-limited auth endpoints.
+- **Explicit session revocation**: password changes and suspensions stamp
+  `users.sessions_invalidated_at`; tokens issued before the watermark die even if unexpired.
+  Comparison is whole-second (JWT `iat` precision): the watermark is floored, so a token issued
+  in the same second as the revocation survives ≤ 1s — the deliberate trade for never locking out
+  a user who changes their password plus re-logs-in inside one second.
+- The post-auth `?next=` redirect target passes through `safeInternalPath` — absolute paths only;
+  `//host`, URLs and control characters fall back to `/dashboard` (open-redirect closed).
 
 ### 2.7 Authorization checks live in services
 
@@ -123,8 +130,12 @@ content. Download goes through `assertCanView`: uploader + admin always; thread 
 for message files; contract parties for milestone files; unlinked PORTFOLIO imagery is public
 by design (it renders on public profiles). The MIME allowlist is the single source of truth —
 no HTML/SVG/executables — and the stored extension comes from the MIME type, never from the
-client filename. This is deliberately not S3: the swap point is one service
-(`storage.service.ts`) behind `storeUpload` / `readAuthorizedFile`.
+client filename. **Bytes are content-sniffed against the declared MIME at upload** (magic-byte
+signatures for binary types; NUL-byte and known-signature rejection for text) — files carry the
+type their contents prove, not the one the uploader claims. Orphaned uploads (never linked,
+not referenced by a portfolio item) are swept by `scripts/gc-uploads.mjs` (`npm run uploads:gc`,
+`GC_MAX_AGE_HOURS` grace) — cron it next to backups. This is deliberately not S3: the swap point
+is one service (`storage.service.ts`) behind `storeUpload` / `readAuthorizedFile`.
 
 ### 2.9 Preferences are opt-out, stored as data
 
@@ -158,24 +169,31 @@ generated from the Drizzle schema (`npm run db:generate`) and replayed by `scrip
 - SQL injection: impossible by construction (parameterized Drizzle everywhere). XSS: React-escaped
   text; no `dangerouslySetInnerHTML`. CSRF: SameSite=Lax cookies + JSON bodies (no GET mutations).
 - Security headers via `next.config.headers()`: nosniff, SAMEORIGIN frame, referrer policy,
-  locked-down permissions policy.
+  locked-down permissions policy. No CSP — Next 15's bootstrap requires inline scripts under the
+  App Router, so a meaningful CSP needs per-request nonces (a documented production upgrade; the
+  same-seam place to add it is `src/proxy.ts`). Without nonces a CSP would be `unsafe-inline`
+  theater, which is worse than none.
+- `/api/health` reports absolute filesystem paths only outside production.
+- Robots: `/admin`, `/dashboard` and `/api` are disallowed, sitemap generated from public routes.
 - Admin actions (suspend user, resolve dispute, mark payout) write actor/action/ip into
   `audit_logs`.
 
 ## 6. Testing strategy
 
-- **Unit (69)** — money math incl. the drift-sensitive float cases, slugify/URL normalisation,
+- **Unit (75)** — money math incl. the drift-sensitive float cases, slugify/URL normalisation,
   pagination clamps, zod schemas (policy messages, strict unknown-key rejection), password hashing &
   policy, JWT sign/verify/tamper, rate limiter windows, storage policy (MIME allowlist, filename
-  sanitisation) and feature-pack schemas.
-- **Integration (29)** — the whole marketplace: register → project → proposal → hire → plan →
+  sanitisation, magic-byte content sniffing), redirect sanitisation, session-freshness rule and
+  feature-pack schemas.
+- **Integration (32)** — the whole marketplace: register → project → proposal → hire → plan →
   fund-guard races → submit-role races → release → finish → reviews + rating aggregates → payouts →
   dispute both ways → refunds → cancel guards → notification flow → **global money invariants over
   the entire database** (deposits = released + fees + refunds + held; admin KPI equals the
   milestone-derived escrow figure; every wallet equals its ledger); plus messaging authorization,
-  thread anchoring regressions, and the feature pack: portfolio CRUD guards, saved-project privacy,
-  notification opt-outs, review responses, and the file pipeline
-  (store → link → authorize-by-conversation, stranger denial, context and re-link rules).
+  thread anchoring regressions, the feature pack: portfolio CRUD guards, saved-project privacy,
+  notification opt-outs, review responses, the file pipeline
+  (store → link → authorize-by-conversation, stranger denial, context and re-link rules), session
+  revocation across password change + suspension, and upload GC.
 - CI then boots the **built** server and smoke-tests it — deployment shape, not just source.
 
 ## 7. Deployment

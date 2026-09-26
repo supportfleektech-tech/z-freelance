@@ -153,6 +153,22 @@ export function normalizeUrl(input: string | null | undefined): string | null {
 }
 
 /** Split a comma- or newline-separated list into trimmed, de-duplicated items. */
+/**
+ * Coerce a user-supplied redirect target into a guaranteed internal path.
+ *
+ * Accepts only absolute paths on this origin (`/dashboard/saved`); everything
+ * else — absolute URLs, protocol-relative URLs (`//evil.com`), javascript:
+ * links, plain strings — falls back to `fallback`. This is the only way a
+ * `?next=` query parameter is ever allowed to steer navigation.
+ */
+export function safeInternalPath(target: string | null | undefined, fallback = "/"): string {
+  if (!target) return fallback;
+  if (!target.startsWith("/") || target.startsWith("//")) return fallback;
+  // Control characters / backslashes have no business in a path.
+  if (/[\u0000-\u001f\\]/.test(target)) return fallback;
+  return target;
+}
+
 export function parseList(input: string, max = 20): string[] {
   const seen = new Set<string>();
   const out: string[] = [];

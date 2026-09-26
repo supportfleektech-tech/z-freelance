@@ -2,7 +2,7 @@ import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users, type User } from "../db/schema";
-import { readSessionToken, verifySessionToken } from "./session";
+import { isSessionFresh, readSessionToken, verifySessionToken } from "./session";
 import { ApiError } from "../api/http";
 
 /**
@@ -24,6 +24,10 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   // A deleted or suspended account is never authenticated, regardless of
   // whether its token is still cryptographically valid.
   if (!user || user.status !== "ACTIVE") return null;
+
+  // Tokens issued before an explicit invalidation (password change, admin
+  // suspension) are dead even if unexpired.
+  if (!isSessionFresh(user.sessionsInvalidatedAt, payload.iat)) return null;
   return user;
 });
 

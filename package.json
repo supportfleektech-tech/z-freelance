@@ -27,7 +27,8 @@
     "db:setup": "npm run db:migrate && npm run db:seed",
     "docker:build": "docker build -t z-freelance:local .",
     "docker:up": "docker compose up --build",
-    "postbuild": "mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public 2>/dev/null || true"
+    "postbuild": "mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public 2>/dev/null || true",
+    "uploads:gc": "node scripts/gc-uploads.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",

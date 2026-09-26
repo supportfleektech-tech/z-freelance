@@ -82,7 +82,8 @@ Build the image alone: `docker build -t z-freelance:local . && docker run -p 300
 
 ```bash
 npm run check        # typecheck + lint + tests + production build
-npm run test         # 98 tests: unit + real-DB integration suite
+npm run test         # 107 tests: unit + real-DB integration suite
+npm run uploads:gc   # sweep abandoned uploads older than 24h (GC_MAX_AGE_HOURS to tune) — cron it in prod
 ```
 
 CI (`.github/workflows/ci.yml`) runs on every push: typecheck → lint → tests → production build → **boot the built server** → seed → smoke-test health, landing, marketplace API and a real seeded login. A third job builds the Docker image.
@@ -127,7 +128,7 @@ src/components          ← UI (client components only where there is interactiv
 src/server/services     ← ALL business rules + money movement + transactions
 src/lib                 ← db client, auth, validation, money, env, utils (framework-agnostic)
 drizzle                 ← SQL migrations generated from src/lib/db/schema.ts
-scripts                 ← migrate.mjs (prod-safe JS) + seed.ts (demo data via real services)
+scripts                 ← migrate.mjs + gc-uploads.mjs (prod-safe JS) + seed.ts (demo data via real services)
 tests                   ← unit/ + integration/ (escrow state machine on real Postgres)
 docs                    ← ARCHITECTURE.md (also rendered in-app at /docs/architecture)
 ```
@@ -138,7 +139,7 @@ This is a self-contained system, so two integrations are intentionally simulated
 
 - **Escrow "deposits"** record client intent and lock money in the ledger (`ESCROW_DEPOSIT` with a unique `escrow_reference`) — no card network is involved. The seam is `fundMilestone()` in `src/server/services/contract.service.ts`; a payment-intent adapter drops in without touching callers.
 - **Payouts** are a request → finance-team approval workflow (`REQUESTED → PAID`) rather than bank transfers; approve in **Admin → Payouts**.
-- **Uploads** are durable + authorized, but not virus-scanned — a production deployment would add a scanning step (and likely an object-storage adapter) at the `storage.service.ts` seam.
+- **Uploads** are durable, content-sniffed (magic bytes must match the declared type) and authorized, but not virus-scanned — a production deployment would add a scanning step (and likely an object-storage adapter) at the `storage.service.ts` seam.
 
 Everything else — auth, escrow state machine, fee math, wallets, ledger, disputes, reviews (with public responses), messaging (with file attachments), notifications (with per-type opt-outs), portfolios, bookmarks, moderation, audit trail — is fully implemented and exercised by the test suite.
 

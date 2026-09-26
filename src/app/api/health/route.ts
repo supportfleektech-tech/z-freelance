@@ -29,14 +29,22 @@ export async function GET() {
       (await access(path.dirname(uploadDir), constants.W_OK)
         .then(() => true)
         .catch(() => false));
+    // Absolute filesystem paths are operator detail — kept out of responses
+    // the public internet can read in production.
+    const exposePaths = process.env.NODE_ENV !== "production";
     return NextResponse.json({
       status: "ok",
       service: config.name,
       version: process.env.npm_package_version ?? "1.0.0",
       driver: await dbDriver(),
       database: "up",
-      dataDir: (await dbDriver()) === "pglite" ? (process.env.PGLITE_DATA_DIR ?? ".pgdata") : null,
-      uploads: { dir: uploadDir, writable: uploadWritable },
+      dataDir:
+        exposePaths && (await dbDriver()) === "pglite"
+          ? (process.env.PGLITE_DATA_DIR ?? ".pgdata")
+          : null,
+      uploads: exposePaths
+        ? { dir: uploadDir, writable: uploadWritable }
+        : { writable: uploadWritable },
       latencyMs: Date.now() - startedAt,
       time: new Date().toISOString(),
     });

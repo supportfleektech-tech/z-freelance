@@ -15,6 +15,13 @@
       "when": 1790401874893,
       "tag": "0001_colossal_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790405519595,
+      "tag": "0002_acoustic_miek",
+      "breakpoints": true
     }
   ]
 }

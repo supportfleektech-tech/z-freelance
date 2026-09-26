@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "@/lib/api-client";
+import { safeInternalPath } from "@/lib/utils";
 import { Alert } from "./ui";
 
 interface SessionUser {
@@ -17,7 +18,8 @@ interface SessionUser {
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/dashboard";
+  // The redirect target is user-controlled input — coerce to an internal path.
+  const next = safeInternalPath(searchParams.get("next"), "/dashboard");
 
   const [role, setRole] = useState<"CLIENT" | "FREELANCER">("CLIENT");
   const [name, setName] = useState("");

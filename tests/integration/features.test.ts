@@ -18,7 +18,13 @@ import { db as getDb, __rawClient, schema } from "@/lib/db";
 import type { PGlite } from "@electric-sql/pglite";
 import { ApiError } from "@/lib/api/http";
 import { config } from "@/lib/config";
-import { registerUser } from "@/server/services/account.service";
+import {
+  authenticate,
+  changePassword,
+  registerUser,
+  setUserStatus,
+} from "@/server/services/account.service";
+import { createSessionToken, isSessionFresh, verifySessionToken } from "@/lib/auth/session";
 import { createProject } from "@/server/services/project.service";
 import { createProposal } from "@/server/services/proposal.service";
 import {
@@ -50,7 +56,12 @@ import {
   listReviewsForUser,
   respondToReview,
 } from "@/server/services/review.service";
-import { assertCanView, deleteUpload, storeUpload } from "@/server/services/storage.service";
+import {
+  assertCanView,
+  deleteUpload,
+  gcOrphanedUploads,
+  storeUpload,
+} from "@/server/services/storage.service";
 import { getOrCreateThread, getThread, sendMessage } from "@/server/services/messaging.service";
 
 const people: Record<string, { id: string; role: string }> = {};
@@ -259,7 +270,7 @@ describe("uploads & attachments", () => {
       context: "PORTFOLIO",
       fileName: "cover.png",
       mimeType: "image/png",
-      data: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]),
     });
     const database = await getDb();
     await assertCanView(database, null, image.id);
@@ -272,7 +283,7 @@ describe("uploads & attachments", () => {
       context: "MILESTONE",
       fileName: "build.zip",
       mimeType: "application/zip",
-      data: Buffer.from("PK"),
+      data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]),
     });
     const database = await getDb();
     await expectStatus(
@@ -517,5 +528,160 @@ describe("milestone deliverables + review responses", () => {
     expect(reviewNotices.filter((n) => n.type === "REVIEW_RECEIVED")).toHaveLength(2);
 
     await updateNotificationPrefs(people.client!.id, { REVIEW_RECEIVED: true });
+  });
+});
+
+/* ----------------------------------------------------- session revocation */
+
+/** Sign a session token with a chosen iat — models a session opened earlier. */
+async function signSessionAt(userId: string, role: "CLIENT" | "FREELANCER" | "ADMIN", iat: number) {
+  const { SignJWT } = await import("jose");
+  return new SignJWT({ role })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setSubject(userId)
+    .setJti(crypto.randomUUID())
+    .setIssuedAt(iat)
+    .setExpirationTime(iat + 60 * 60 * 24 * 7)
+    .setIssuer("z-freelance")
+    .setAudience("z-freelance-web")
+    .sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+}
+
+describe("session revocation", () => {
+  it("password change kills every pre-change token", async () => {
+    const account = await registerUser({
+      name: "Revocable Riley",
+      email: "feat-revoke@test.io",
+      password: "Password123!",
+      role: "CLIENT",
+    });
+
+    // A session opened ten minutes ago (back-dated — deterministic).
+    const oldIat = Math.floor(Date.now() / 1000) - 600;
+    const tokenBefore = await signSessionAt(account.id, account.role, oldIat);
+    const payloadBefore = await verifySessionToken(tokenBefore);
+    expect(payloadBefore).not.toBeNull();
+
+    // Fresh by definition before anything happens.
+    const database = await getDb();
+    let [row] = await database
+      .select({ cut: schema.users.sessionsInvalidatedAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, account.id))
+      .limit(1);
+    expect(isSessionFresh(row?.cut ?? null, payloadBefore!.iat)).toBe(true);
+
+    await changePassword(account.id, "Password123!", "BetterPass99!");
+
+    [row] = await database
+      .select({ cut: schema.users.sessionsInvalidatedAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, account.id))
+      .limit(1);
+    expect(row?.cut).not.toBeNull();
+    // The old token (signed before the change) is now stale…
+    expect(isSessionFresh(row!.cut, payloadBefore!.iat)).toBe(false);
+
+    // …but the old credentials fail and the USER can still get back in
+    // even when they do it inside the same wall-clock second.
+    await expectStatus(authenticate("feat-revoke@test.io", "Password123!"), 401);
+    const backIn = await authenticate("feat-revoke@test.io", "BetterPass99!");
+    const tokenAfter = await createSessionToken(backIn.id, backIn.role);
+    const payloadAfter = await verifySessionToken(tokenAfter);
+    expect(isSessionFresh(row!.cut, payloadAfter!.iat)).toBe(true);
+  });
+
+  it("suspension watermarks sessions and reactivation does not revive them", async () => {
+    const target = await registerUser({
+      name: "Suspendable Sue",
+      email: "feat-suspend@test.io",
+      password: "Password123!",
+      role: "FREELANCER",
+    });
+    // Back-date the session so the watermark comparison is deterministic.
+    const oldIat = Math.floor(Date.now() / 1000) - 120;
+    const token = await signSessionAt(target.id, target.role, oldIat);
+    const payload = await verifySessionToken(token);
+
+    await setUserStatus(people.admin!.id, target.id, "SUSPENDED", "review suite");
+
+    const database = await getDb();
+    const [row] = await database
+      .select({ cut: schema.users.sessionsInvalidatedAt, status: schema.users.status })
+      .from(schema.users)
+      .where(eq(schema.users.id, target.id))
+      .limit(1);
+    expect(row?.status).toBe("SUSPENDED");
+    expect(isSessionFresh(row!.cut, payload!.iat)).toBe(false);
+
+    await setUserStatus(people.admin!.id, target.id, "ACTIVE");
+    const [reRow] = await database
+      .select({ cut: schema.users.sessionsInvalidatedAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, target.id))
+      .limit(1);
+    // Never revive a token that crossed a suspension.
+    expect(isSessionFresh(reRow!.cut, payload!.iat)).toBe(false);
+  });
+});
+
+/* ---------------------------------------------------------- upload GC */
+
+describe("upload garbage collection", () => {
+  it("sweeps only true orphans, preserving linked and referenced files", async () => {
+    const database = await getDb();
+    const cutoff = new Date(Date.now() + 60_000); // future — sweeps every unlinked row
+
+    const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+
+    // 1. A linked message attachment (from the earlier test) must survive.
+    const linkedId = state.messageAttachmentId!;
+
+    // 2. A portfolio image referenced by a saved item must survive.
+    const cover = await storeUpload({
+      uploaderId: people.sofia!.id,
+      context: "PORTFOLIO",
+      fileName: "cover.png",
+      mimeType: "image/png",
+      data: pngBytes,
+    });
+    await createPortfolioItem(people.sofia!.id, {
+      title: "GC-guarded piece",
+      imageAttachmentId: cover.id,
+    });
+
+    // 3. A genuinely abandoned upload (no links anywhere) is the target.
+    const orphan = await storeUpload({
+      uploaderId: people.sofia!.id,
+      context: "MESSAGE",
+      fileName: "abandoned.txt",
+      mimeType: "text/plain",
+      data: Buffer.from("left behind"),
+    });
+
+    const swept = await gcOrphanedUploads(cutoff);
+    expect(swept).toBeGreaterThanOrEqual(1);
+
+    const gone = await database
+      .select({ id: schema.attachments.id })
+      .from(schema.attachments)
+      .where(eq(schema.attachments.id, orphan.id))
+      .limit(1);
+    expect(gone).toHaveLength(0);
+    expect(await readdir(path.resolve(config.uploadDir))).not.toContain(orphan.storageKey);
+
+    const survivors = await database
+      .select({ id: schema.attachments.id })
+      .from(schema.attachments)
+      .where(eq(schema.attachments.id, linkedId))
+      .limit(1);
+    expect(survivors).toHaveLength(1);
+
+    const coverKept = await database
+      .select({ id: schema.attachments.id })
+      .from(schema.attachments)
+      .where(eq(schema.attachments.id, cover.id))
+      .limit(1);
+    expect(coverKept).toHaveLength(1);
   });
 });
