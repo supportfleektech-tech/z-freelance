@@ -1,0 +1,2 @@
+Keeps public/ in the repo: the Dockerfile COPY expects it.
+(Static assets live here when needed; /icon.svg, /robots.txt and /sitemap.xml are generated routes.)
