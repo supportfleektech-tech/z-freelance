@@ -36,6 +36,21 @@ const envSchema = z.object({
   /** Directory used by the embedded PGlite database. */
   PGLITE_DATA_DIR: z.string().min(1).default(".pgdata"),
 
+  /**
+   * Directory where user-uploaded files are stored. Relative paths resolve
+   * against the server process cwd — set an absolute path in production
+   * (the Docker image uses /data/uploads).
+   */
+  UPLOAD_DIR: z.string().min(1).default(".uploads"),
+
+  /** Maximum accepted upload size, in bytes (default 10 MiB). */
+  UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .max(100 * 1024 * 1024)
+    .default(10 * 1024 * 1024),
+
   /** bcrypt cost factor. Lowered in tests for speed. */
   PASSWORD_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
 

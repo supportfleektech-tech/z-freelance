@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { config } from "../config";
 import { normalizeUrl } from "../utils";
+import { attachmentIdsSchema } from "./files";
 
 /** Optional http(s) URL: validated before it is normalised. */
 const urlField = (label: string) =>
@@ -69,6 +70,7 @@ export const sendMessageSchema = z
   .object({
     threadId: z.string().uuid(),
     body: z.string().trim().min(1, "Write a message first.").max(config.limits.messageBody),
+    attachmentIds: attachmentIdsSchema,
   })
   .strict();
 

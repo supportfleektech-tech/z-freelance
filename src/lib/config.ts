@@ -14,14 +14,27 @@ export const config = {
   get minBidCents(): number {
     return env().MIN_BID_CENTS;
   },
+  /** Absolute path of the upload storage directory (resolved lazily). */
+  get uploadDir(): string {
+    return env().UPLOAD_DIR;
+  },
+  get uploadMaxBytes(): number {
+    return env().UPLOAD_MAX_BYTES;
+  },
   limits: {
     projectTitle: 160,
     projectDescription: 8000,
     coverLetter: 4000,
     messageBody: 4000,
     reviewComment: 2000,
+    reviewResponse: 1500,
     skillsPerProject: 8,
     milestonesPerContract: 20,
+    portfolioTitle: 140,
+    portfolioDescription: 2000,
+    portfolioItemsPerFreelancer: 20,
+    attachmentsPerPost: 5,
+    uploadFileName: 240,
     pageSize: 12,
     maxPageSize: 50,
   },

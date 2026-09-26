@@ -87,6 +87,11 @@ export const reviewDirectionEnum = pgEnum("review_direction", [
   "CLIENT_TO_FREELANCER",
   "FREELANCER_TO_CLIENT",
 ]);
+export const attachmentContextEnum = pgEnum("attachment_context", [
+  "MESSAGE",
+  "MILESTONE",
+  "PORTFOLIO",
+]);
 export const disputeStatusEnum = pgEnum("dispute_status", [
   "OPEN",
   "IN_REVIEW",
@@ -124,6 +129,11 @@ export const users = pgTable(
     role: userRoleEnum("role").notNull().default("CLIENT"),
     status: userStatusEnum("status").notNull().default("ACTIVE"),
     avatarUrl: text("avatar_url"),
+    /**
+     * Per-type in-app notification opt-outs: `{ "MESSAGE_RECEIVED": false }`
+     * means "don't create message notifications". Missing keys mean enabled.
+     */
+    notificationPrefs: jsonb("notification_prefs").$type<Record<string, boolean>>(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -522,6 +532,9 @@ export const reviews = pgTable(
     direction: reviewDirectionEnum("direction").notNull(),
     rating: integer("rating").notNull(),
     comment: text("comment"),
+    /** The review subject gets exactly one public right of reply. */
+    responseText: text("response_text"),
+    responseAt: timestamp("response_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -599,6 +612,88 @@ export const auditLogs = pgTable(
   }),
 );
 
+/* ------------------------------------------------------- files & uploads */
+
+/**
+ * Uploaded files live on disk (UPLOAD_DIR); this table is the metadata +
+ * authorization record. An upload starts life unlinked (both FKs null) and is
+ * bound to exactly one conversation message or escrow milestone when the post
+ * it belongs to is submitted. Files whose context is PORTFOLIO and which are
+ * still unlinked are treated as public imagery for a freelancer's profile.
+ */
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    uploaderId: uuid("uploader_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    context: attachmentContextEnum("context").notNull(),
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "cascade" }),
+    milestoneId: uuid("milestone_id").references(() => milestones.id, { onDelete: "cascade" }),
+    /** Original client-side name, shown in the UI. */
+    fileName: varchar("file_name", { length: 240 }).notNull(),
+    /** Random on-disk name under UPLOAD_DIR — never derived from user input. */
+    storageKey: varchar("storage_key", { length: 120 }).notNull(),
+    mimeType: varchar("mime_type", { length: 120 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    storageKeyUnique: uniqueIndex("attachments_storage_key_unique").on(t.storageKey),
+    uploaderIdx: index("attachments_uploader_idx").on(t.uploaderId),
+    messageIdx: index("attachments_message_idx").on(t.messageId),
+    milestoneIdx: index("attachments_milestone_idx").on(t.milestoneId),
+    positiveSize: check("attachments_size_positive_check", sql`${t.sizeBytes} > 0`),
+  }),
+);
+
+/* ---------------------------------------------------- portfolio & saved */
+
+/** A freelancer's showcase pieces, rendered on their public profile. */
+export const portfolioItems = pgTable(
+  "portfolio_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    freelancerId: uuid("freelancer_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 140 }).notNull(),
+    description: text("description"),
+    url: text("url"),
+    /** Optional cover image uploaded through the attachment pipeline. */
+    imageAttachmentId: uuid("image_attachment_id").references(() => attachments.id, {
+      onDelete: "set null",
+    }),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    freelancerIdx: index("portfolio_items_freelancer_idx").on(t.freelancerId),
+  }),
+);
+
+/** Freelancer bookmarks on open projects ("saved for later"). */
+export const savedProjects = pgTable(
+  "saved_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    onePerUserProject: uniqueIndex("saved_projects_user_project_unique").on(t.userId, t.projectId),
+    userIdx: index("saved_projects_user_idx").on(t.userId),
+    projectIdx: index("saved_projects_project_idx").on(t.projectId),
+  }),
+);
+
 /* -------------------------------------------------------------- exports */
 
 export type User = typeof users.$inferSelect;
@@ -618,4 +713,8 @@ export type ProposalStatus = (typeof proposalStatusEnum.enumValues)[number];
 export type ContractStatus = (typeof contractStatusEnum.enumValues)[number];
 export type MilestoneStatus = (typeof milestoneStatusEnum.enumValues)[number];
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
+export type Attachment = typeof attachments.$inferSelect;
+export type AttachmentContext = (typeof attachmentContextEnum.enumValues)[number];
+export type PortfolioItem = typeof portfolioItems.$inferSelect;
+export type SavedProject = typeof savedProjects.$inferSelect;
 export type DisputeStatus = (typeof disputeStatusEnum.enumValues)[number];

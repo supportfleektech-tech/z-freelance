@@ -1,5 +1,6 @@
 import { getThread } from "@/server/services/messaging.service";
 import { Avatar } from "./ui";
+import { AttachmentList } from "./file-upload";
 import { MessageComposer } from "./message-composer";
 import { timeAgo } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ export async function ThreadView({ threadId, viewerId }: { threadId: string; vie
                 }`}
               >
                 <p className="whitespace-pre-wrap">{message.body}</p>
+                <AttachmentList attachments={message.attachments} tone={own ? "dark" : "light"} />
                 <p className={`mt-1 text-[10px] ${own ? "text-brand-200" : "text-ink-400"}`}>
                   {timeAgo(message.createdAt)}
                 </p>

@@ -3,6 +3,7 @@ import { db as getDb, type Tx } from "@/lib/db";
 import { contracts, messages, proposals, projects, threads, users } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/http";
 import { notify } from "./notification.service";
+import { linkAttachments, listMessageAttachments } from "./storage.service";
 
 export interface ThreadSummary {
   id: string;
@@ -80,7 +81,7 @@ export async function getOrCreateThread(
 /** Append a message and notify the other participant. */
 export async function sendMessage(
   tx: Tx,
-  input: { threadId: string; senderId: string; body: string },
+  input: { threadId: string; senderId: string; body: string; attachmentIds?: string[] },
 ): Promise<{ id: string }> {
   const [thread] = await tx.select().from(threads).where(eq(threads.id, input.threadId)).limit(1);
   if (!thread) throw ApiError.notFound("Conversation not found.");
@@ -94,6 +95,15 @@ export async function sendMessage(
     .values({ threadId: thread.id, senderId: input.senderId, body: input.body })
     .returning({ id: messages.id });
   if (!message) throw new Error("message insert returned no row");
+
+  // Linking happens inside the same transaction — an invalid file reference
+  // rolls the message back rather than silently dropping the attachment.
+  await linkAttachments(tx, {
+    uploaderId: input.senderId,
+    attachmentIds: input.attachmentIds ?? [],
+    context: "MESSAGE",
+    messageId: message.id,
+  });
 
   await tx.update(threads).set({ lastMessageAt: new Date() }).where(eq(threads.id, thread.id));
 
@@ -234,9 +244,22 @@ export async function getThread(userId: string, threadId: string) {
     .where(eq(users.id, otherId))
     .limit(1);
 
+  const attachmentsByMessage = await listMessageAttachments(
+    database,
+    rows.map((r) => r.id),
+  );
+
   return {
     thread: { ...thread, participantName: other?.name ?? "Unknown user" },
-    messages: rows,
+    messages: rows.map((m) => ({
+      ...m,
+      attachments: (attachmentsByMessage.get(m.id) ?? []).map((a) => ({
+        id: a.id,
+        fileName: a.fileName,
+        mimeType: a.mimeType,
+        sizeBytes: a.sizeBytes,
+      })),
+    })),
   };
 }
 

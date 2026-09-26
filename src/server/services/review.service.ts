@@ -119,6 +119,68 @@ async function refreshRating(tx: Tx, userId: string): Promise<void> {
   }
 }
 
+/**
+ * The review subject's single public right of reply.
+ *
+ * A response is written once (edit = replace while the review is young is
+ * intentionally not supported — replies should be considered, not iterated),
+ * and the author is notified so the conversation closes the loop.
+ */
+export async function respondToReview(
+  userId: string,
+  reviewId: string,
+  text: string,
+): Promise<Review> {
+  const database = await getDb();
+
+  return database.transaction(async (tx) => {
+    const [review] = await tx.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
+    if (!review) throw ApiError.notFound("Review not found.");
+    if (review.subjectId !== userId) {
+      throw ApiError.forbidden("Only the person being reviewed can respond.");
+    }
+    if (review.responseAt) {
+      throw ApiError.conflict("You have already responded to this review.");
+    }
+
+    const [updated] = await tx
+      .update(reviews)
+      .set({ responseText: text, responseAt: new Date() })
+      .where(eq(reviews.id, reviewId))
+      .returning();
+    if (!updated) throw new Error("review response update returned no row");
+
+    const [responder] = await tx
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    await notify(tx, {
+      userId: review.authorId,
+      type: "REVIEW_RECEIVED",
+      title: `${responder?.name ?? "The recipient"} responded to your review`,
+      link: "/dashboard/reviews",
+    });
+
+    return updated;
+  });
+}
+
+/** Retract a pending response (only the responder, only their own). */
+export async function deleteReviewResponse(userId: string, reviewId: string): Promise<void> {
+  const database = await getDb();
+  const [review] = await database.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
+  if (!review) throw ApiError.notFound("Review not found.");
+  if (review.subjectId !== userId) throw ApiError.forbidden("This is not your response.");
+  if (!review.responseAt) return;
+
+  await database
+    .update(reviews)
+    .set({ responseText: null, responseAt: null })
+    .where(eq(reviews.id, reviewId));
+}
+
 /** Reviews received by a user, newest first. */
 export async function listReviewsForUser(userId: string): Promise<ReviewWithAuthor[]> {
   const database = await getDb();

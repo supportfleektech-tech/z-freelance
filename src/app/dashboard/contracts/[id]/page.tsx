@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { getContractDetail } from "@/server/services/contract.service";
 import { ratingSummary } from "@/server/services/review.service";
+import { listMilestoneAttachments } from "@/server/services/storage.service";
 import { db as getDb, schema } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { formatMoney } from "@/lib/money";
@@ -19,6 +20,7 @@ import {
   Avatar,
 } from "@/components/ui";
 import { MilestoneActions } from "@/components/milestone-actions";
+import { AttachmentList } from "@/components/file-upload";
 import { MilestonePlanForm } from "@/components/milestone-plan-form";
 import { DisputeForm } from "@/components/dispute-form";
 import { CancelContractButton } from "@/components/cancel-contract-button";
@@ -59,6 +61,12 @@ export default async function ContractWorkspacePage({
     alreadyReviewed = rows.length > 0;
   }
   const counterpartyRating = await ratingSummary(counterparty.id);
+
+  const database = await getDb();
+  const attachmentsByMilestone = await listMilestoneAttachments(
+    database,
+    milestones.map((m) => m.id),
+  );
 
   return (
     <>
@@ -164,6 +172,7 @@ export default async function ContractWorkspacePage({
                             {m.submissionNote}
                           </p>
                         ) : null}
+                        <AttachmentList attachments={attachmentsByMilestone.get(m.id) ?? []} />
                       </div>
                       <p className="text-lg font-bold tabular-nums text-ink-950">
                         {formatMoney(m.amountCents)}

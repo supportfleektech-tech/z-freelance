@@ -13,8 +13,10 @@ export const POST = route(
 
     const { id } = await parseParams(context.params, idParamSchema);
     const freelancer = await requireUser();
-    const { submissionNote } = await parseBody(request, submitWorkSchema);
+    const { submissionNote, attachmentIds } = await parseBody(request, submitWorkSchema);
 
-    return ok({ milestone: await submitWork(id, freelancer.id, submissionNote) });
+    return ok({
+      milestone: await submitWork(id, freelancer.id, submissionNote, attachmentIds),
+    });
   },
 );

@@ -19,6 +19,7 @@ import { ApiError } from "@/lib/api/http";
 import { config } from "@/lib/config";
 import { freelancerPayoutCents, platformFeeCents } from "@/lib/money";
 import { notify } from "./notification.service";
+import { linkAttachments } from "./storage.service";
 import { getOrCreateThread } from "./messaging.service";
 import { assertProposalOpenForHire } from "./proposal.service";
 import { markProjectInProgress, notifyNonHiredProposers } from "./project.service";
@@ -449,6 +450,7 @@ export async function submitWork(
   milestoneId: string,
   freelancerId: string,
   submissionNote: string,
+  attachmentIds: string[] = [],
 ): Promise<Milestone> {
   const database = await getDb();
 
@@ -466,6 +468,15 @@ export async function submitWork(
       .where(and(eq(milestones.id, milestoneId), eq(milestones.status, "FUNDED")))
       .returning();
     if (!updated) throw ApiError.conflict("This milestone has already moved on.");
+
+    // Deliverable files — linked atomically with the submission. A bad
+    // attachment reference rolls the submission back instead of losing files.
+    await linkAttachments(tx, {
+      uploaderId: freelancerId,
+      attachmentIds,
+      context: "MILESTONE",
+      milestoneId,
+    });
 
     await notify(tx, {
       userId: contract.clientId,

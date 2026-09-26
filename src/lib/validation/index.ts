@@ -4,3 +4,4 @@ export * from "./marketplace";
 export * from "./contracts";
 export * from "./social";
 export * from "./admin";
+export * from "./files";

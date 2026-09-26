@@ -33,11 +33,12 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
-    PGLITE_DATA_DIR=/data/pglite
+    PGLITE_DATA_DIR=/data/pglite \
+    UPLOAD_DIR=/data/uploads
 
-# Non-root runtime user + writable data dir for the embedded-Postgres mode.
+# Non-root runtime user + writable data dirs (embedded Postgres + uploads).
 RUN addgroup -g 1001 -S nodejs && adduser -S zfreelance -u 1001 -G nodejs \
-    && mkdir -p /data/pglite && chown -R zfreelance:nodejs /data
+    && mkdir -p /data/pglite /data/uploads && chown -R zfreelance:nodejs /data
 
 # Full production node_modules (for the migration runner; the standalone
 # server carries its own traced copy internally).

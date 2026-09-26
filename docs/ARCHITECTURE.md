@@ -112,6 +112,26 @@ Examples: `mustOwnProject`, `loadContractFor(tx, ..., role)`, party checks in `g
 `sendMessage` / `createReview`, `requireRole("ADMIN")` for moderation. UI hides buttons as a
 courtesy; services enforce them as law.
 
+### 2.8 Files: bytes on disk, trust in Postgres
+
+User files (message attachments, escrow deliverables, portfolio imagery) are stored as
+server-named blobs under `UPLOAD_DIR` (`uuid.ext` — **user input never becomes a path**),
+with metadata and authorization in the `attachments` table. Uploads start _unlinked_ and are
+bound to exactly one message or milestone inside the same transaction as the post they belong
+to, so a rejected attach rolls the post back and a file can never dangle onto someone else's
+content. Download goes through `assertCanView`: uploader + admin always; thread participants
+for message files; contract parties for milestone files; unlinked PORTFOLIO imagery is public
+by design (it renders on public profiles). The MIME allowlist is the single source of truth —
+no HTML/SVG/executables — and the stored extension comes from the MIME type, never from the
+client filename. This is deliberately not S3: the swap point is one service
+(`storage.service.ts`) behind `storeUpload` / `readAuthorizedFile`.
+
+### 2.9 Preferences are opt-out, stored as data
+
+`users.notification_prefs` holds per-type `false` flags; a missing key means _enabled_. The
+`notify()` fan-out batches one users-read per transaction and silently drops suppressed types —
+callers never have to think about prefs.
+
 ## 3. Data model
 
 Postgres enums for every state column (invalid states unrepresentable); check constraints for
@@ -144,14 +164,18 @@ generated from the Drizzle schema (`npm run db:generate`) and replayed by `scrip
 
 ## 6. Testing strategy
 
-- **Unit (55)** — money math incl. the drift-sensitive float cases, slugify/URL normalisation,
+- **Unit (69)** — money math incl. the drift-sensitive float cases, slugify/URL normalisation,
   pagination clamps, zod schemas (policy messages, strict unknown-key rejection), password hashing &
-  policy, JWT sign/verify/tamper, rate limiter windows.
-- **Integration (15)** — the whole marketplace: register → project → proposal → hire → plan →
+  policy, JWT sign/verify/tamper, rate limiter windows, storage policy (MIME allowlist, filename
+  sanitisation) and feature-pack schemas.
+- **Integration (29)** — the whole marketplace: register → project → proposal → hire → plan →
   fund-guard races → submit-role races → release → finish → reviews + rating aggregates → payouts →
   dispute both ways → refunds → cancel guards → notification flow → **global money invariants over
   the entire database** (deposits = released + fees + refunds + held; admin KPI equals the
-  milestone-derived escrow figure; every wallet equals its ledger).
+  milestone-derived escrow figure; every wallet equals its ledger); plus messaging authorization,
+  thread anchoring regressions, and the feature pack: portfolio CRUD guards, saved-project privacy,
+  notification opt-outs, review responses, and the file pipeline
+  (store → link → authorize-by-conversation, stranger denial, context and re-link rules).
 - CI then boots the **built** server and smoke-tests it — deployment shape, not just source.
 
 ## 7. Deployment

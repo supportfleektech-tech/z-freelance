@@ -9,6 +9,8 @@ import { formatDate, timeAgo } from "@/lib/utils";
 import { Badge, StatusBadge, Stars, Card, CardHeader, MetaRow, Alert } from "@/components/ui";
 import { ProposalForm } from "@/components/proposal-form";
 import { StartThreadButton } from "@/components/thread-buttons";
+import { SaveProjectButton } from "@/components/save-project-button";
+import { isProjectSaved } from "@/server/services/saved-projects.service";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,7 @@ export default async function ProjectDetailPage({ params }: Props) {
   const isFreelancer = user?.role === "FREELANCER";
 
   let myProposalExists = false;
+  let saved = false;
   if (isFreelancer && user) {
     const database = await getDb();
     const existing = await database
@@ -41,6 +44,7 @@ export default async function ProjectDetailPage({ params }: Props) {
       .where(eq(schema.proposals.projectId, project.id))
       .limit(1);
     myProposalExists = existing.length > 0;
+    saved = await isProjectSaved(user.id, project.id);
   }
 
   return (
@@ -132,6 +136,16 @@ export default async function ProjectDetailPage({ params }: Props) {
               </div>
             ) : null}
           </Card>
+
+          {isFreelancer && !isOwner && project.status === "OPEN" ? (
+            <Card className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-ink-900">Watch this project</p>
+                <p className="text-xs text-ink-500">Keep it in your saved list while you decide.</p>
+              </div>
+              <SaveProjectButton projectId={project.id} initialSaved={saved} />
+            </Card>
+          ) : null}
 
           {/* The action card changes with who is looking. */}
           {isOwner ? (

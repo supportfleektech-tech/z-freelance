@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, CircleDollarSign, Send } from "lucide-react";
 import { fetchJson } from "@/lib/api-client";
 import { Alert } from "./ui";
+import { FileUpload } from "./file-upload";
 
 interface Milestone {
   id: string;
@@ -37,6 +38,7 @@ export function MilestoneActions({
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [showSubmit, setShowSubmit] = useState(false);
 
   if (contract.status !== "ACTIVE" && contract.status !== "DISPUTED") return null;
@@ -60,7 +62,7 @@ export function MilestoneActions({
     try {
       await fetchJson(`/api/milestones/${milestone.id}/submit`, {
         method: "POST",
-        body: JSON.stringify({ submissionNote: note }),
+        body: JSON.stringify({ submissionNote: note, attachmentIds }),
       });
       setShowSubmit(false);
       router.refresh();
@@ -102,6 +104,11 @@ export function MilestoneActions({
               placeholder="Describe what you delivered and where the client can see it…"
               value={note}
               onChange={(e) => setNote(e.target.value)}
+            />
+            <FileUpload
+              context="MILESTONE"
+              disabled={pending != null}
+              onChange={(ids) => setAttachmentIds(ids)}
             />
             <div className="flex gap-2">
               <button

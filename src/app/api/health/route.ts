@@ -1,4 +1,7 @@
 import { sql } from "drizzle-orm";
+import { access } from "node:fs/promises";
+import { constants } from "node:fs";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { db, dbDriver } from "@/lib/db";
 import { config } from "@/lib/config";
@@ -17,6 +20,15 @@ export async function GET() {
   try {
     const database = await db();
     await database.execute(sql`select 1`);
+    const uploadDir = path.resolve(config.uploadDir);
+    // The dir is created lazily on first upload — fall back to its parent.
+    const uploadWritable =
+      (await access(uploadDir, constants.W_OK)
+        .then(() => true)
+        .catch(() => false)) ||
+      (await access(path.dirname(uploadDir), constants.W_OK)
+        .then(() => true)
+        .catch(() => false));
     return NextResponse.json({
       status: "ok",
       service: config.name,
@@ -24,6 +36,7 @@ export async function GET() {
       driver: await dbDriver(),
       database: "up",
       dataDir: (await dbDriver()) === "pglite" ? (process.env.PGLITE_DATA_DIR ?? ".pgdata") : null,
+      uploads: { dir: uploadDir, writable: uploadWritable },
       latencyMs: Date.now() - startedAt,
       time: new Date().toISOString(),
     });

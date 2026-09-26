@@ -19,6 +19,7 @@ delete process.env.DATABASE_URL;
 
 const isolatedDir = mkdtempSync(path.join(tmpdir(), "zf-test-pg-"));
 process.env.PGLITE_DATA_DIR = path.join(isolatedDir, "db");
+process.env.UPLOAD_DIR = path.join(isolatedDir, "uploads");
 
 process.on("error", (err) => {
   console.error(err);

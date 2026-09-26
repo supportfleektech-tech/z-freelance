@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { config } from "../config";
+import { attachmentIdsSchema } from "./files";
 
 const positiveCents = z
   .number()
@@ -40,6 +41,7 @@ export const submitWorkSchema = z
       .trim()
       .min(10, "Add a short note describing what you delivered.")
       .max(4000),
+    attachmentIds: attachmentIdsSchema,
   })
   .strict();
 

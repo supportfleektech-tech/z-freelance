@@ -5,6 +5,7 @@ import {
   listFreelancerWork,
 } from "@/server/services/freelancer.service";
 import { listReviewsForUser } from "@/server/services/review.service";
+import { listPortfolioItems } from "@/server/services/portfolio.service";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { formatMoneyCompact, formatMoney } from "@/lib/money";
 import { timeAgo, formatDate } from "@/lib/utils";
@@ -22,9 +23,10 @@ export default async function FreelancerProfilePage({ params }: Props) {
   const [profile, viewer] = await Promise.all([getFreelancerPublicProfile(id), getCurrentUser()]);
   if (!profile) notFound();
 
-  const [work, reviews] = await Promise.all([
+  const [work, reviews, portfolio] = await Promise.all([
     listFreelancerWork(profile.userId),
     listReviewsForUser(profile.userId),
+    listPortfolioItems(profile.userId),
   ]);
 
   const isSelf = viewer?.role === "FREELANCER";
@@ -115,6 +117,51 @@ export default async function FreelancerProfilePage({ params }: Props) {
             </Card>
           ) : null}
 
+          {portfolio.length > 0 ? (
+            <Card>
+              <CardHeader
+                title={`Portfolio (${portfolio.length})`}
+                description="Selected work this specialist chose to show"
+              />
+              <ul className="grid gap-4 sm:grid-cols-2">
+                {portfolio.map((item) => (
+                  <li
+                    key={item.id}
+                    className="overflow-hidden rounded-xl border border-ink-200 transition-shadow hover:shadow-md"
+                  >
+                    {item.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- user-uploaded portfolio art, exact intrinsic size unknown
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className="h-36 w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div className="p-3">
+                      <p className="text-sm font-semibold text-ink-900">{item.title}</p>
+                      {item.description ? (
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-600">
+                          {item.description}
+                        </p>
+                      ) : null}
+                      {item.url ? (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                        >
+                          View project <ArrowRight size={12} />
+                        </a>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+
           {work.length > 0 ? (
             <Card>
               <CardHeader
@@ -156,6 +203,12 @@ export default async function FreelancerProfilePage({ params }: Props) {
                     </div>
                     {review.comment ? (
                       <p className="mt-2 text-sm text-ink-600">{review.comment}</p>
+                    ) : null}
+                    {review.responseText ? (
+                      <div className="mt-2 rounded-lg bg-ink-50 p-3 text-xs leading-5 text-ink-600">
+                        <span className="font-semibold text-ink-800">Response: </span>
+                        {review.responseText}
+                      </div>
                     ) : null}
                   </li>
                 ))}

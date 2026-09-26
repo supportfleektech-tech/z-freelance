@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/guards";
 import { listReviewsForUser, ratingSummary } from "@/server/services/review.service";
 import { timeAgo } from "@/lib/utils";
 import { PageHeader, Stars, Card, CardHeader, EmptyState, Stat } from "@/components/ui";
+import { ReviewResponseForm, RetractResponseButton } from "@/components/review-response-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reviews" };
@@ -46,6 +47,17 @@ export default async function ReviewsPage() {
                 {review.comment ? (
                   <p className="text-sm leading-7 text-ink-700">{review.comment}</p>
                 ) : null}
+                {review.responseText ? (
+                  <div className="mt-3 rounded-lg bg-ink-50 p-3 text-sm leading-6 text-ink-700">
+                    <span className="font-semibold text-ink-900">Your response: </span>
+                    {review.responseText}
+                    <span className="ml-2 align-middle">
+                      <RetractResponseButton reviewId={review.id} />
+                    </span>
+                  </div>
+                ) : (
+                  <ReviewResponseForm reviewId={review.id} />
+                )}
               </Card>
             ))}
           </div>

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { notifications, type NotificationType } from "@/lib/db/schema";
-import type { DbOrTx } from "@/lib/db";
+import { notifications, users, type NotificationType } from "@/lib/db/schema";
+import { db as getDb, type DbOrTx } from "@/lib/db";
 
 export interface NotifyInput {
   userId: string;
@@ -10,21 +10,36 @@ export interface NotifyInput {
   link?: string;
 }
 
+/** A missing key means "enabled" — users opt out, never in. */
+function typeEnabled(prefs: Record<string, boolean> | null, type: NotificationType): boolean {
+  return prefs?.[type] !== false;
+}
+
+/**
+ * Drop notifications the recipient has switched off in their preferences.
+ * One batched read regardless of how many recipients are involved.
+ */
+async function filterByPrefs(tx: DbOrTx, inputs: NotifyInput[]): Promise<NotifyInput[]> {
+  if (inputs.length === 0) return [];
+  const userIds = [...new Set(inputs.map((i) => i.userId))];
+  const rows = await tx
+    .select({ id: users.id, prefs: users.notificationPrefs })
+    .from(users)
+    .where(inArray(users.id, userIds));
+  const prefsById = new Map(rows.map((r) => [r.id, r.prefs]));
+  return inputs.filter((i) => typeEnabled(prefsById.get(i.userId) ?? null, i.type));
+}
+
 /** Create one in-app notification. Called inside the same transaction as the action that caused it. */
 export async function notify(tx: DbOrTx, input: NotifyInput): Promise<void> {
-  await tx.insert(notifications).values({
-    userId: input.userId,
-    type: input.type,
-    title: input.title,
-    body: input.body ?? null,
-    link: input.link ?? null,
-  });
+  await notifyMany(tx, [input]);
 }
 
 export async function notifyMany(tx: DbOrTx, inputs: NotifyInput[]): Promise<void> {
-  if (inputs.length === 0) return;
+  const deliverable = await filterByPrefs(tx, inputs);
+  if (deliverable.length === 0) return;
   await tx.insert(notifications).values(
-    inputs.map((i) => ({
+    deliverable.map((i) => ({
       userId: i.userId,
       type: i.type,
       title: i.title,
@@ -32,6 +47,40 @@ export async function notifyMany(tx: DbOrTx, inputs: NotifyInput[]): Promise<voi
       link: i.link ?? null,
     })),
   );
+}
+
+/** The caller's full preference map (absent types = enabled). */
+export async function getNotificationPrefs(userId: string): Promise<Record<string, boolean>> {
+  const database = await getDb();
+  const [row] = await database
+    .select({ prefs: users.notificationPrefs })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return row?.prefs ?? {};
+}
+
+/** Merge explicit per-type choices into the stored preferences. */
+export async function updateNotificationPrefs(
+  userId: string,
+  patch: Partial<Record<NotificationType, boolean>>,
+): Promise<Record<string, boolean>> {
+  const database = await getDb();
+  const current = await getNotificationPrefs(userId);
+  const merged: Record<string, boolean> = { ...current };
+  for (const [type, enabled] of Object.entries(patch)) {
+    if (enabled === true) {
+      // Enabled is the default — no need to store anything.
+      delete merged[type];
+    } else {
+      merged[type] = false;
+    }
+  }
+  await database
+    .update(users)
+    .set({ notificationPrefs: merged, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  return merged;
 }
 
 export interface ListNotificationsOptions {

@@ -72,7 +72,7 @@ jobs:
         run: |
           cp .env.example .env.local
           cp -r drizzle .next/standalone/drizzle 2>/dev/null || true
-          (cd .next/standalone && HOSTNAME=0.0.0.0 PORT=3000 PGLITE_DATA_DIR="${GITHUB_WORKSPACE}/.pgdata" node server.js &)
+          (cd .next/standalone && HOSTNAME=0.0.0.0 PORT=3000 PGLITE_DATA_DIR="${GITHUB_WORKSPACE}/.pgdata" UPLOAD_DIR="${GITHUB_WORKSPACE}/.uploads" node server.js &)
           for i in $(seq 1 30); do
             sleep 2
             if curl -sf http://localhost:3000/api/health; then exit 0; fi

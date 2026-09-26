@@ -19,11 +19,18 @@ export const POST = route(
     if (input.threadId !== id) {
       throw ApiError.badRequest("The threadId in the body does not match the URL.");
     }
-    return created(await sendInThread(user.id, id, input.body));
+    return created(await sendInThread(user.id, id, input.body, input.attachmentIds));
   },
 );
 
-async function sendInThread(userId: string, threadId: string, body: string) {
+async function sendInThread(
+  userId: string,
+  threadId: string,
+  body: string,
+  attachmentIds: string[],
+) {
   const database = await getDb();
-  return database.transaction(async (tx) => sendMessage(tx, { threadId, senderId: userId, body }));
+  return database.transaction(async (tx) =>
+    sendMessage(tx, { threadId, senderId: userId, body, attachmentIds }),
+  );
 }

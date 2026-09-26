@@ -33,9 +33,9 @@ PENDING ──fund──▶ FUNDED ──submit──▶ SUBMITTED ──approve
 | Tests      | **Vitest**                       | 55 unit tests + 15-test integration suite driving the whole escrow flow against real Postgres                                              |
 | Deploy     | **Docker multi-stage + Compose** | ~200MB image, Postgres 16 service, entrypoint auto-migrates, health checks                                                                 |
 
-## The domain model (18 tables)
+## The domain model (21 tables)
 
-`users → freelancer_profiles / client_profiles` · `categories ← skills` · `projects ← project_skills` · `proposals` (unique per freelancer×project) · `contracts` (fee frozen at hire time) · `milestones` (escrow state machine) · `wallets / transactions (immutable ledger) / payouts` · `threads / messages` · `reviews` (two-sided, aggregates recomputed never incremented) · `notifications / disputes / audit_logs`.
+`users → freelancer_profiles / client_profiles` · `categories ← skills` · `projects ← project_skills` · `proposals` (unique per freelancer×project) · `contracts` (fee frozen at hire time) · `milestones` (escrow state machine) · `wallets / transactions (immutable ledger) / payouts` · `threads / messages` · `reviews` (two-sided, aggregates recomputed never incremented, one public response each) · `notifications / disputes / audit_logs` · `attachments` (file metadata + auth, bytes on disk) · `portfolio_items` (freelancer storefront) · `saved_projects` (private bookmarks).
 
 Constraints that make bad states impossible: check `amount > 0`, check `rating ∈ [1,5]`, check `wallet ≥ 0`, check `budget_min ≤ budget_max`, one contract per proposal, one review per party per contract.
 
@@ -82,7 +82,7 @@ Build the image alone: `docker build -t z-freelance:local . && docker run -p 300
 
 ```bash
 npm run check        # typecheck + lint + tests + production build
-npm run test         # 70 tests: unit + real-DB integration suite
+npm run test         # 98 tests: unit + real-DB integration suite
 ```
 
 CI (`.github/workflows/ci.yml`) runs on every push: typecheck → lint → tests → production build → **boot the built server** → seed → smoke-test health, landing, marketplace API and a real seeded login. A third job builds the Docker image.
@@ -95,8 +95,10 @@ Auth (cookie session, rate-limited): `POST /api/auth/register · login · logout
 Marketplace: `GET/POST /api/projects · GET/PATCH /api/projects/:id · /transition · GET/POST /api/projects/:id/proposals`
 Proposals: `POST /api/proposals/:id/decision (SHORTLIST|REJECT|HIRE) · /withdraw`
 Contracts & escrow: `GET /api/contracts·/:id · /milestones (plan/add) · /cancel · /disputes` · `POST /api/milestones/:id/(fund|submit|approve)`
-Money: `GET /api/wallet · POST /api/payouts · GET/POST /api/reviews`
-Social: `GET/POST /api/threads · GET /api/threads/:id · POST /api/threads/:id/messages` · `GET /api/notifications · POST /api/notifications/read`
+Money: `GET /api/wallet · POST /api/payouts · GET/POST /api/reviews · PUT/DELETE /api/reviews/:id/response`
+Social: `GET/POST /api/threads · GET /api/threads/:id · POST /api/threads/:id/messages` · `GET /api/notifications · POST /api/notifications/read` · `GET/PATCH /api/me/notification-prefs`
+Files: `POST /api/uploads (multipart, context=MESSAGE|MILESTONE|PORTFOLIO) · GET/DELETE /api/files/:id` — bytes on disk, authorization in Postgres (thread participants / contract parties; portfolio imagery public)
+Freelancer depth: `GET/POST /api/me/portfolio · PATCH/DELETE /api/me/portfolio/:id` · `POST/DELETE /api/projects/:id/save · GET /api/me/saved-projects`
 Directory: `GET /api/freelancers·/:id · GET /api/categories · PATCH /api/me/profile`
 Admin: `GET /api/admin/stats·/users·/disputes·/payouts · PATCH /api/admin/users/:id/status · POST /api/disputes/:id/resolve · POST /api/admin/payouts/:id/pay · POST /api/admin/categories`
 Ops: `GET /api/health` (reports driver: `postgres` | `pglite`, db latency)
@@ -113,6 +115,8 @@ Everything is validated at boot (`src/lib/env.ts`) and documented in `.env.examp
 | `PLATFORM_FEE_BPS` | `1000`                      | Platform take rate in basis points (10%)        |
 | `PASSWORD_ROUNDS`  | `12`                        | bcrypt cost                                     |
 | `MIN_BID_CENTS`    | `500`                       | Minimum proposal bid                            |
+| `UPLOAD_DIR`       | `.uploads`                  | Disk root for user files (absolute in prod)     |
+| `UPLOAD_MAX_BYTES` | `10485760`                  | Files above this are rejected (10 MiB default)  |
 
 ## Repository layout
 
@@ -134,8 +138,9 @@ This is a self-contained system, so two integrations are intentionally simulated
 
 - **Escrow "deposits"** record client intent and lock money in the ledger (`ESCROW_DEPOSIT` with a unique `escrow_reference`) — no card network is involved. The seam is `fundMilestone()` in `src/server/services/contract.service.ts`; a payment-intent adapter drops in without touching callers.
 - **Payouts** are a request → finance-team approval workflow (`REQUESTED → PAID`) rather than bank transfers; approve in **Admin → Payouts**.
+- **Uploads** are durable + authorized, but not virus-scanned — a production deployment would add a scanning step (and likely an object-storage adapter) at the `storage.service.ts` seam.
 
-Everything else — auth, escrow state machine, fee math, wallets, ledger, disputes, reviews, messaging, notifications, moderation, audit trail — is fully implemented and exercised by the test suite.
+Everything else — auth, escrow state machine, fee math, wallets, ledger, disputes, reviews (with public responses), messaging (with file attachments), notifications (with per-type opt-outs), portfolios, bookmarks, moderation, audit trail — is fully implemented and exercised by the test suite.
 
 ## Links inside the app
 

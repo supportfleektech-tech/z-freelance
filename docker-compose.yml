@@ -38,6 +38,9 @@ services:
       APP_URL: ${APP_URL:-http://localhost:3000}
       PLATFORM_FEE_BPS: "1000"
       PASSWORD_ROUNDS: "12"
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - app-data:/data
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -50,3 +53,4 @@ services:
 
 volumes:
   db-data:
+  app-data:

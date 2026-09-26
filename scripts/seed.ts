@@ -9,14 +9,16 @@
  * Run with: npm run db:seed        (skips if already seeded)
  *           FORCE_SEED=1 npm run db:seed   (wipes and reseeds)
  */
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db as getDb } from "@/lib/db";
-import { categories, milestones, skills, users, wallets } from "@/lib/db/schema";
+import { categories, milestones, reviews, skills, users, wallets } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/auth/password";
 import { slugify } from "@/lib/utils";
 import { registerUser } from "@/server/services/account.service";
 import { createProject } from "@/server/services/project.service";
 import { createProposal } from "@/server/services/proposal.service";
+import { createPortfolioItem } from "@/server/services/portfolio.service";
+import { setProjectSaved } from "@/server/services/saved-projects.service";
 import {
   approveMilestone,
   fundMilestone,
@@ -24,7 +26,7 @@ import {
   setMilestonePlan,
   submitWork,
 } from "@/server/services/contract.service";
-import { createReview } from "@/server/services/review.service";
+import { createReview, respondToReview } from "@/server/services/review.service";
 import { updateFreelancerProfile, updateClientProfile } from "@/server/services/account.service";
 
 const DEMO_PASSWORD = "Password123!";
@@ -532,6 +534,76 @@ async function seed(): Promise<void> {
     comment:
       "Clear scope, fast feedback, escrow funded on day one. Would work with Northwind again.",
   });
+
+  // The freelancer exercises the single public right of reply on her review.
+  const [sofiaReview] = await db
+    .select({ id: reviews.id })
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.contractId, completedContract.id),
+        eq(reviews.subjectId, id(completed.freelancer)),
+      ),
+    )
+    .limit(1);
+  if (sofiaReview) {
+    await respondToReview(
+      id(completed.freelancer),
+      sofiaReview.id,
+      "Thank you, Amara — the weekly cadence made this easy to ship. Happy to pick the reporting module up next.",
+    );
+  }
+
+  /* ------------------------------------------------------------ portfolio */
+  for (const item of [
+    {
+      freelancer: "sofia.freelance@example.com",
+      title: "Subscription analytics dashboard for a Nairobi SaaS",
+      description:
+        "Usage-based billing dashboards with cohort charts and metered invoicing. Next.js, Postgres, 40 shipped charts.",
+      url: "https://example.com/case-studies/usage-analytics",
+    },
+    {
+      freelancer: "sofia.freelance@example.com",
+      title: "M-Pesa integration for an events platform",
+      description:
+        "STK push + reconciliation ledger for 20k tickets/month. Zero duplicate charges across retries.",
+      url: "https://example.com/case-studies/mpesa-ledger",
+    },
+    {
+      freelancer: "hana.freelance@example.com",
+      title: "Checkout funnel overhaul for a D2C brand",
+      description:
+        "Reduced 4-step checkout to 2; mobile conversion up 31% in the first month after launch.",
+      url: "https://example.com/case-studies/checkout-funnel",
+    },
+    {
+      freelancer: "hana.freelance@example.com",
+      title: "Design system for a telehealth startup",
+      description:
+        "120+ tokens, 40 components, full accessibility pass. Adopted by three product squads.",
+    },
+    {
+      freelancer: "hana.freelance@example.com",
+      title: "Patient onboarding UX for Lumen Health",
+      description: "Interviewed 12 patients; redesigned intake from 23 fields to 9.",
+    },
+  ]) {
+    await createPortfolioItem(id(item.freelancer), {
+      title: item.title,
+      description: item.description,
+      url: item.url,
+    });
+  }
+  console.log("[seed] portfolio: 5 showcase items across 2 freelancers");
+
+  /* --------------------------------------------------------- saved projects */
+  // Hana bookmarks two open projects she hasn't bid on yet (private list).
+  for (const projectIndex of [3, 6]) {
+    const project = projectIds[projectIndex];
+    if (project) await setProjectSaved(id("hana.freelance@example.com"), project.id, true);
+  }
+  console.log("[seed] saved projects: 2 bookmarked for the demo freelancer");
 
   /* --------------------------------------------- in-flight contract (escrow) */
   const inFlight = proposals[3];
