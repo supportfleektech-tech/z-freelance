@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+.pgdata
+coverage
+drizzle/meta/_journal.json.bak
+*.log
+.env
+.env.*
+!.env.example
+Dockerfile
+docker-compose.yml
+README.md
+docs
+.uploads

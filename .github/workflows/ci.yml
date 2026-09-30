@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SESSION_SECRET: ci-session-secret-not-for-production-000000000
+  PASSWORD_ROUNDS: "4"
+  PLATFORM_FEE_BPS: "1000"
+
+jobs:
+  verify:
+    name: Typecheck · Lint · Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit + integration tests (real Postgres via PGlite)
+        # The integration suite spins up a real embedded Postgres per worker —
+        # no service container required, same SQL as production.
+        run: npm run test
+
+  build:
+    name: Production build + boot smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Migrate embedded database
+        run: npm run db:migrate
+
+      - name: Seed demo data (smoke-test of the full escrow pipeline)
+        run: FORCE_SEED=1 npm run db:seed
+
+      - name: Start production server
+        # Standalone output runs from .next/standalone, so the embedded database
+        # path must be absolute — otherwise the server would open a NEW empty DB.
+        run: |
+          cp .env.example .env.local
+          cp -r drizzle .next/standalone/drizzle 2>/dev/null || true
+          (cd .next/standalone && HOSTNAME=0.0.0.0 PORT=3000 PGLITE_DATA_DIR="${GITHUB_WORKSPACE}/.pgdata" UPLOAD_DIR="${GITHUB_WORKSPACE}/.uploads" node server.js &)
+          for i in $(seq 1 30); do
+            sleep 2
+            if curl -sf http://localhost:3000/api/health; then exit 0; fi
+          done
+          echo "server did not become healthy" >&2
+          exit 1
+
+      - name: "Smoke: health, landing, marketplace API, seeded login"
+        run: |
+          set -e
+          curl -sf http://localhost:3000/api/health | grep -q '"database":"up"'
+          curl -sf http://localhost:3000/ | grep -qi "escrow"
+          curl -sf "http://localhost:3000/api/projects" | grep -q '"ok":true'
+          curl -sf http://localhost:3000/api/freelancers | grep -q '"ok":true'
+          curl -sf -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"sofia.freelance@example.com","password":"Password123!"}' \
+            | grep -q '"ok":true'
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: z-freelance:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
