@@ -21,19 +21,41 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-          background: "#f8fafc",
-          color: "#0f172a",
+          fontFamily:
+            'Inter, "SF Pro Text", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+          background: "linear-gradient(135deg, #f8f7f4 0%, #eef9f1 55%, #fdf3e0 100%)",
+          color: "#3e3b37",
         }}
       >
-        <main style={{ maxWidth: 420, padding: 24, textAlign: "center" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Something went wrong</h1>
-          <p style={{ marginTop: 8, fontSize: 14, color: "#64748b" }}>
-            z-freelance hit an unexpected error. The incident is logged — you can try again without
-            losing anything.
+        <main style={{ maxWidth: 440, padding: 24, textAlign: "center" }}>
+          <div
+            aria-hidden
+            style={{
+              margin: "0 auto",
+              width: 72,
+              height: 72,
+              borderRadius: 20,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 34,
+              color: "#fff",
+              fontWeight: 900,
+              background: "linear-gradient(135deg, #0e8049, #052717)",
+              boxShadow: "0 16px 40px -12px rgb(14 128 73 / 0.5)",
+            }}
+          >
+            z
+          </div>
+          <h1 style={{ marginTop: 24, fontSize: 24, fontWeight: 900, letterSpacing: "-0.02em" }}>
+            Something went wrong
+          </h1>
+          <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6, color: "#817a6e" }}>
+            z-freelance hit an unexpected error. Nothing you did — and money in escrow is safe in
+            the ledger regardless. Try again and the incident is logged either way.
           </p>
           {error.digest ? (
-            <p style={{ marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
+            <p style={{ marginTop: 10, fontSize: 12, fontFamily: "monospace", color: "#9d968a" }}>
               Reference: {error.digest}
             </p>
           ) : null}
@@ -41,14 +63,16 @@ export default function GlobalError({
             type="button"
             onClick={reset}
             style={{
-              marginTop: 20,
-              padding: "10px 20px",
-              borderRadius: 10,
+              marginTop: 24,
+              padding: "12px 24px",
+              borderRadius: 12,
               border: "none",
-              background: "#1d4ed8",
+              background: "linear-gradient(135deg, #0e8049, #0c673d)",
               color: "#fff",
-              fontWeight: 600,
+              fontWeight: 700,
+              fontSize: 14,
               cursor: "pointer",
+              boxShadow: "0 8px 24px -8px rgb(14 128 73 / 0.6)",
             }}
           >
             Try again

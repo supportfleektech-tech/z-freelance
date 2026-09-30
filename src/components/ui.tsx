@@ -1,6 +1,6 @@
 import { cn, initials, avatarTone } from "@/lib/utils";
 import { formatDate, timeAgo } from "@/lib/utils";
-import { Star } from "lucide-react";
+import { Star, Info, CircleAlert, CircleCheck } from "lucide-react";
 
 /* ------------------------------------------------------------ typography */
 
@@ -34,8 +34,12 @@ export function PageHeader(props: {
 
 /* ------------------------------------------------------------------ card */
 
-export function Card(props: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("card p-5", props.className)}>{props.children}</div>;
+export function Card(props: { children: React.ReactNode; className?: string; hover?: boolean }) {
+  return (
+    <div className={cn("card p-5", props.hover && "card-hover", props.className)}>
+      {props.children}
+    </div>
+  );
 }
 
 export function CardHeader(props: {
@@ -119,12 +123,51 @@ export function StatusBadge({ status }: { status: string }) {
 
 /* ----------------------------------------------------------------- stats */
 
-export function Stat(props: { label: string; value: React.ReactNode; hint?: string }) {
+type StatTone = "brand" | "amber" | "violet" | "rose" | "ink";
+
+const statTones: Record<StatTone, string> = {
+  brand: "from-brand-500 to-brand-700",
+  amber: "from-amber-400 to-amber-600",
+  violet: "from-violet-400 to-violet-600",
+  rose: "from-rose-400 to-rose-600",
+  ink: "from-ink-500 to-ink-700",
+};
+
+export function Stat(props: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  icon?: React.ComponentType<{ size?: number | string; className?: string }>;
+  tone?: StatTone;
+}) {
+  const Icon = props.icon;
   return (
-    <div className="card p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{props.label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-ink-950">{props.value}</p>
-      {props.hint ? <p className="mt-1 text-xs text-ink-500">{props.hint}</p> : null}
+    <div className="card card-hover group relative overflow-hidden p-4">
+      <div
+        aria-hidden
+        className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-ink-50 transition-colors duration-300 group-hover:bg-brand-50"
+      />
+      <div className="relative flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-500">
+            {props.label}
+          </p>
+          <p className="mt-1.5 font-display text-2xl font-black tabular-nums text-ink-950">
+            {props.value}
+          </p>
+          {props.hint ? <p className="mt-1 text-xs text-ink-500">{props.hint}</p> : null}
+        </div>
+        {Icon ? (
+          <span
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-pop transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110",
+              statTones[props.tone ?? "brand"],
+            )}
+          >
+            <Icon size={18} />
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -225,31 +268,54 @@ export function EmptyState(props: {
   action?: React.ReactNode;
 }) {
   return (
-    <div className="card flex flex-col items-center justify-center p-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-ink-100 text-2xl">
-        ✳︎
+    <div className="card relative flex flex-col items-center justify-center overflow-hidden p-12 text-center">
+      <div aria-hidden className="aurora-blob -top-10 h-40 w-40 bg-brand-100/70" />
+      <div aria-hidden className="aurora-blob -bottom-12 h-40 w-40 bg-amber-100/80" />
+      <div
+        aria-hidden
+        className="relative mb-4 flex h-14 w-14 animate-float-slow items-center justify-center rounded-2xl bg-gradient-to-br from-ink-100 to-ink-200 shadow-card"
+      >
+        <span className="bg-gradient-to-br from-brand-600 to-amber-500 bg-clip-text text-2xl text-transparent">
+          ✦
+        </span>
       </div>
-      <h3 className="text-base font-semibold text-ink-900">{props.title}</h3>
+      <h3 className="relative text-base font-bold text-ink-950">{props.title}</h3>
       {props.description ? (
-        <p className="mt-1 max-w-sm text-sm text-ink-500">{props.description}</p>
+        <p className="relative mt-1.5 max-w-sm text-sm text-ink-500">{props.description}</p>
       ) : null}
-      {props.action ? <div className="mt-4">{props.action}</div> : null}
+      {props.action ? <div className="relative mt-5">{props.action}</div> : null}
     </div>
   );
 }
 
+const alertStyles = {
+  info: {
+    box: "border-brand-200 bg-brand-50 text-brand-900",
+    icon: <Info size={17} className="mt-px shrink-0 text-brand-600" aria-hidden />,
+  },
+  error: {
+    box: "border-rose-200 bg-rose-50 text-rose-900",
+    icon: <CircleAlert size={17} className="mt-px shrink-0 text-rose-600" aria-hidden />,
+  },
+  success: {
+    box: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    icon: <CircleCheck size={17} className="mt-px shrink-0 text-emerald-600" aria-hidden />,
+  },
+} as const;
+
 export function Alert(props: { tone?: "info" | "error" | "success"; children: React.ReactNode }) {
-  const tones = {
-    info: "border-brand-200 bg-brand-50 text-brand-900",
-    error: "border-rose-200 bg-rose-50 text-rose-900",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  } as const;
+  const tone = alertStyles[props.tone ?? "info"];
   return (
     <div
       role="alert"
-      className={cn("rounded-lg border px-4 py-3 text-sm", tones[props.tone ?? "info"])}
+      className={cn(
+        "flex animate-fade-in gap-2.5 rounded-xl border px-4 py-3 text-sm",
+        props.tone === "error" && "animate-wiggle [animation-iteration-count:2]",
+        tone.box,
+      )}
     >
-      {props.children}
+      {tone.icon}
+      <div className="min-w-0">{props.children}</div>
     </div>
   );
 }

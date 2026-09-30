@@ -20,7 +20,7 @@ export const metadata: Metadata = {
       "A freelance marketplace with milestone escrow: fund work in advance, release payment the moment delivery is approved.",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "z-freelance — milestone-escrow freelance marketplace",
     description:
       "Clients fund work in advance; freelancers get paid the moment delivery is approved.",

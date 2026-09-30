@@ -48,11 +48,10 @@ export function initials(name: string): string {
 export function avatarTone(seed: string): string {
   const palette = [
     "bg-brand-100 text-brand-800",
-    "bg-emerald-100 text-emerald-800",
     "bg-amber-100 text-amber-800",
     "bg-rose-100 text-rose-800",
     "bg-violet-100 text-violet-800",
-    "bg-cyan-100 text-cyan-800",
+    "bg-orange-100 text-orange-800",
   ];
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;

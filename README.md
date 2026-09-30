@@ -22,16 +22,17 @@ PENDING ──fund──▶ FUNDED ──submit──▶ SUBMITTED ──approve
 
 ## Stack
 
-| Layer      | Choice                           | Reason                                                                                                                                     |
-| ---------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Framework  | **Next.js 15 App Router**        | Server Components read from the DB directly; client components only exist where there's interactivity                                      |
-| Language   | **TypeScript, strict**           | `noUncheckedIndexedAccess` on; no `any` in product code                                                                                    |
-| Database   | **Postgres via Drizzle ORM**     | Typed SQL, real migrations. Runs on **real Postgres** (`DATABASE_URL`) or **PGlite** (Postgres in WASM) locally/CI — same schema, same SQL |
-| Auth       | **bcrypt + JWT (jose)**          | httpOnly cookie sessions; authorisation re-checked against the DB row on every request so suspension is instant                            |
-| Validation | **Zod (strict)**                 | Shared schemas for API + UI; unknown keys rejected                                                                                         |
-| UI         | **Tailwind CSS**                 | Design tokens in `tailwind.config.ts`, component classes in `globals.css`                                                                  |
-| Tests      | **Vitest**                       | 55 unit tests + 15-test integration suite driving the whole escrow flow against real Postgres                                              |
-| Deploy     | **Docker multi-stage + Compose** | ~200MB image, Postgres 16 service, entrypoint auto-migrates, health checks                                                                 |
+| Layer      | Choice                           | Reason                                                                                                                                                                                                    |
+| ---------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework  | **Next.js 15 App Router**        | Server Components read from the DB directly; client components only exist where there's interactivity                                                                                                     |
+| Language   | **TypeScript, strict**           | `noUncheckedIndexedAccess` on; no `any` in product code                                                                                                                                                   |
+| Database   | **Postgres via Drizzle ORM**     | Typed SQL, real migrations. Runs on **real Postgres** (`DATABASE_URL`) or **PGlite** (Postgres in WASM) locally/CI — same schema, same SQL                                                                |
+| Auth       | **bcrypt + JWT (jose)**          | httpOnly cookie sessions; authorisation re-checked against the DB row on every request so suspension is instant                                                                                           |
+| Validation | **Zod (strict)**                 | Shared schemas for API + UI; unknown keys rejected                                                                                                                                                        |
+| UI         | **Tailwind CSS**                 | Custom identity (forest-green + gold on warm paper, NOT default SaaS blue); design tokens in `tailwind.config.ts`, component classes in `globals.css`                                                     |
+| Motion     | **Zero-dependency**              | Scroll reveals, looping typewriter, marquees, count-ups and the animated product tour are bespoke (IntersectionObserver + rAF + CSS keyframes) — no animation library, all `prefers-reduced-motion`-aware |
+| Tests      | **Vitest**                       | 55 unit tests + 15-test integration suite driving the whole escrow flow against real Postgres                                                                                                             |
+| Deploy     | **Docker multi-stage + Compose** | ~200MB image, Postgres 16 service, entrypoint auto-migrates, health checks                                                                                                                                |
 
 ## The domain model (21 tables)
 
@@ -145,6 +146,9 @@ Everything else — auth, escrow state machine, fee math, wallets, ledger, dispu
 
 ## Links inside the app
 
+- `/` — animated landing: looping typewriter hero, scroll-reveal sections, category marquees, and the **60-second product tour** (an animated, seekable walkthrough of the escrow lifecycle styled as a video player)
 - `/docs` — the product workflow explained to humans
 - `/docs/architecture` — this engineering story rendered in-app
 - `/api/health` — ready for any load balancer
+
+The UI ships a bespoke identity instead of the default SaaS blue: deep forest green (money/trust), warm gold (the delivered-value moment), warm taupe neutrals, plus aurora backdrops, pulse-ring CTAs, micro-interaction button physics, redesigned 404/500/root-error surfaces and a generated OpenGraph share card (`src/app/opengraph-image.png`). Every animation respects `prefers-reduced-motion`.

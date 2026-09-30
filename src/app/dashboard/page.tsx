@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  Briefcase,
+  FileText,
+  Wallet,
+  TrendingUp,
+  FolderKanban,
+  Inbox,
+} from "lucide-react";
+import { CountUp, Reveal } from "@/components/motion";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { listClientProjects } from "@/server/services/project.service";
 import {
@@ -57,13 +66,40 @@ async function ClientHome({ userId }: { userId: string }) {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Open projects" value={String(open)} hint={`${projects.length} total`} />
-        <Stat label="Pending proposals" value={String(pending)} hint="Waiting for your review" />
-        <Stat label="Active contracts" value={String(activeContracts)} />
-        <Stat
-          label="Total spent"
-          value={formatMoney(Number(bundle?.client?.totalSpentCents ?? 0))}
-        />
+        <Reveal delay={0}>
+          <Stat
+            label="Open projects"
+            value={<CountUp value={open} />}
+            hint={`${projects.length} total`}
+            icon={FolderKanban}
+            tone="brand"
+          />
+        </Reveal>
+        <Reveal delay={80}>
+          <Stat
+            label="Pending proposals"
+            value={<CountUp value={pending} />}
+            hint="Waiting for your review"
+            icon={Inbox}
+            tone="amber"
+          />
+        </Reveal>
+        <Reveal delay={160}>
+          <Stat
+            label="Active contracts"
+            value={<CountUp value={activeContracts} />}
+            icon={Briefcase}
+            tone="violet"
+          />
+        </Reveal>
+        <Reveal delay={240}>
+          <Stat
+            label="Total spent"
+            value={formatMoney(Number(bundle?.client?.totalSpentCents ?? 0))}
+            icon={Wallet}
+            tone="ink"
+          />
+        </Reveal>
       </div>
 
       {pending > 0 ? (
@@ -181,18 +217,41 @@ async function FreelancerHome({ userId }: { userId: string }) {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat
-          label="Wallet balance"
-          value={formatMoney(wallet?.balanceCents ?? 0)}
-          hint="Available to withdraw"
-        />
-        <Stat label="Open proposals" value={String(pending)} hint={`${proposals.length} total`} />
-        <Stat label="Active contracts" value={String(active)} />
-        <Stat
-          label="Lifetime earned"
-          value={formatMoney(earned)}
-          hint={rating > 0 ? `★ ${rating.toFixed(1)} rating` : undefined}
-        />
+        <Reveal delay={0}>
+          <Stat
+            label="Wallet balance"
+            value={formatMoney(wallet?.balanceCents ?? 0)}
+            hint="Available to withdraw"
+            icon={Wallet}
+            tone="amber"
+          />
+        </Reveal>
+        <Reveal delay={80}>
+          <Stat
+            label="Open proposals"
+            value={<CountUp value={pending} />}
+            hint={`${proposals.length} total`}
+            icon={FileText}
+            tone="brand"
+          />
+        </Reveal>
+        <Reveal delay={120}>
+          <Stat
+            label="Active contracts"
+            value={<CountUp value={active} />}
+            icon={Briefcase}
+            tone="violet"
+          />
+        </Reveal>
+        <Reveal delay={220}>
+          <Stat
+            label="Lifetime earned"
+            value={formatMoney(earned)}
+            hint={rating > 0 ? `★ ${rating.toFixed(1)} rating` : undefined}
+            icon={TrendingUp}
+            tone="ink"
+          />
+        </Reveal>
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_340px]">

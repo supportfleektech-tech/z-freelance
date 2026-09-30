@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Search, ShieldCheck, Landmark, ArrowRight, Workflow, Star } from "lucide-react";
+import { ArrowRight, Workflow, ShieldCheck, Landmark, Star, Quote, CirclePlay } from "lucide-react";
 import { platformStats } from "@/server/services/admin.service";
 import { listCategories } from "@/server/services/taxonomy.service";
 import { searchFreelancers } from "@/server/services/freelancer.service";
@@ -7,6 +7,9 @@ import { searchProjects } from "@/server/services/project.service";
 import { db as getDb } from "@/lib/db";
 import { formatMoneyCompact, formatBudget } from "@/lib/money";
 import { Badge, Avatar, Stars, StatusBadge } from "@/components/ui";
+import { Reveal, TypeWriter } from "@/components/motion";
+import { LandingHero } from "@/components/landing/hero";
+import { TourPlayer } from "@/components/landing/tour";
 import { excerpt } from "@/lib/utils";
 
 export const metadata = { title: "Hire freelancers with money held in escrow" };
@@ -23,133 +26,155 @@ export default async function HomePage() {
 
   return (
     <main>
-      {/* ------------------------------------------------------------ hero */}
-      <section className="border-b border-ink-100 bg-gradient-to-b from-brand-50 to-white">
-        <div className="container-page grid gap-12 py-20 lg:grid-cols-2 lg:items-center">
-          <div>
-            <Badge tone="blue" className="mb-4">
-              Escrow built in · 10% fee, only on released work
-            </Badge>
-            <h1 className="text-4xl font-bold tracking-tight text-ink-950 sm:text-5xl">
-              Hire great freelancers.
-              <span className="block text-brand-700">Pay only when work is delivered.</span>
-            </h1>
-            <p className="mt-5 max-w-lg text-lg text-ink-600">
-              Post a project, get proposals from vetted specialists, and fund milestones into
-              escrow. Money only moves when you approve the delivery — or when an admin resolves a
-              dispute.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/register" className="btn-primary">
-                Post a project — it&apos;s free
-                <ArrowRight size={16} />
-              </Link>
-              <Link href="/projects" className="btn-secondary">
-                <Search size={16} />
-                Browse open work
-              </Link>
-            </div>
-            <dl className="mt-10 grid max-w-md grid-cols-3 gap-6">
-              <HeroStat label="Freelancers" value={String(stats.users.freelancers)} />
-              <HeroStat label="Open projects" value={String(stats.projects.open)} />
-              <HeroStat
-                label="Paid through escrow"
-                value={formatMoneyCompact(stats.money.grossVolumeCents)}
-              />
-            </dl>
-          </div>
+      <LandingHero
+        freelancerCount={stats.users.freelancers}
+        openProjects={stats.projects.open}
+        paidVolume={formatMoneyCompact(stats.money.grossVolumeCents)}
+      />
 
-          {/* The escrow flow card — the product explained in one visual. */}
-          <div className="card mx-auto w-full max-w-md p-6 lg:justify-self-end">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">
-              How escrow works
-            </p>
-            <ol className="mt-4 space-y-4">
-              {[
-                {
-                  icon: Workflow,
-                  title: "Client funds a milestone",
-                  body: "The agreed amount is deposited into escrow before work starts — so the freelancer knows the money is real.",
-                },
-                {
-                  icon: ShieldCheck,
-                  title: "Freelancer delivers",
-                  body: "Work is submitted for review. The funds stay locked — neither side can touch them — until the client decides.",
-                },
-                {
-                  icon: Landmark,
-                  title: "Approval releases payment",
-                  body: "One click releases the escrowed amount. The 10% platform fee is deducted; the rest lands in the freelancer's wallet, instantly.",
-                },
-              ].map((step, i) => (
-                <li key={step.title} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white">
-                      <step.icon size={16} />
-                    </span>
-                    {i < 2 ? <span className="mt-1 w-px flex-1 bg-ink-200" /> : null}
-                  </div>
-                  <div className={i < 2 ? "pb-4" : ""}>
-                    <p className="font-semibold text-ink-900">{step.title}</p>
-                    <p className="mt-1 text-sm text-ink-500">{step.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <Link href="/docs" className="link mt-4 inline-flex items-center gap-1 text-sm">
-              Read the full workflow <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
+      {/* ---------------------------------------------- category marquees */}
+      <section className="overflow-hidden border-b border-ink-200/60 bg-white py-6">
+        <MarqueeRow categories={categories} offset={0} />
+        <MarqueeRow categories={[...categories].reverse()} offset={1} reverse />
       </section>
 
-      {/* -------------------------------------------------------- categories */}
-      <section className="container-page py-14">
-        <SectionHeading
-          title="Six categories, every specialism"
-          action={
-            <Link href="/projects" className="link text-sm">
-              Explore all →
-            </Link>
-          }
-        />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {categories.slice(0, 8).map((category) => (
-            <Link
-              key={category.id}
-              href={`/projects?categoryId=${category.id}`}
-              className="card group p-4 hover:border-brand-300"
-            >
-              <p className="font-semibold text-ink-900 group-hover:text-brand-700">
-                {category.name}
-              </p>
-              <p className="mt-1 line-clamp-1 text-xs text-ink-500">{category.description}</p>
-            </Link>
+      {/* -------------------------------------------------- how it works */}
+      <section className="container-page noise relative py-20">
+        <Reveal>
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="eyebrow">The escrow flow</p>
+            <h2 className="mt-3 text-balance font-display text-3xl font-black tracking-tight text-ink-950 sm:text-4xl">
+              Money that jumps through
+              <span className="gradient-text"> one hoop</span>, not the other
+            </h2>
+            <p className="mt-3 text-ink-600">
+              Three clicks separate &ldquo;hired&rdquo; from &ldquo;paid&rdquo; — and the money is
+              protected at every step, on both sides of the deal.
+            </p>
+          </div>
+        </Reveal>
+
+        <ol className="relative mt-14 grid gap-6 md:grid-cols-3">
+          {/* connector */}
+          <div
+            aria-hidden
+            className="absolute left-[10%] right-[10%] top-10 hidden border-t-2 border-dashed border-brand-200 md:block"
+          />
+          {[
+            {
+              icon: Workflow,
+              step: "01",
+              title: "Fund before work starts",
+              body: "The client deposits the milestone into escrow. The freelancer sees the money is real and gets to work with confidence.",
+              tone: "from-brand-500 to-brand-700",
+            },
+            {
+              icon: ShieldCheck,
+              step: "02",
+              title: "Deliver while it's locked",
+              body: "Work is submitted for review. Neither side can touch the funds — disputes are resolved by a human admin, not a bot.",
+              tone: "from-amber-400 to-amber-600",
+            },
+            {
+              icon: Landmark,
+              step: "03",
+              title: "Release the moment it lands",
+              body: "One approval and the escrow opens instantly: 90% to the freelancer's wallet, 10% platform fee. That's the whole fee, ever.",
+              tone: "from-emerald-500 to-brand-700",
+            },
+          ].map((step, i) => (
+            <Reveal key={step.title} delay={i * 130}>
+              <li className="card card-hover relative h-full p-6">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-pop ${step.tone}`}
+                  >
+                    <step.icon size={20} />
+                  </span>
+                  <span className="font-display text-3xl font-black text-ink-100">{step.step}</span>
+                </div>
+                <h3 className="mt-4 text-lg font-bold text-ink-950">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-600">{step.body}</p>
+              </li>
+            </Reveal>
           ))}
+        </ol>
+
+        <Reveal delay={420}>
+          <div className="mt-8 text-center">
+            <Link href="/docs" className="link text-sm">
+              Read the full workflow <ArrowRight size={14} className="inline" />
+            </Link>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ----------------------------------------------- the tutorial */}
+      <section className="relative overflow-hidden border-y border-ink-200/60 bg-white py-20">
+        <div className="aurora-blob -left-24 top-1/3 h-80 w-80 bg-brand-200/50" />
+        <div className="aurora-blob -right-24 bottom-0 h-80 w-80 bg-amber-200/50" />
+        <div className="container-page relative grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <Reveal>
+            <div>
+              <p className="eyebrow flex items-center gap-2">
+                <CirclePlay size={14} />
+                The 60-second tour
+              </p>
+              <h2 className="mt-3 text-balance font-display text-3xl font-black tracking-tight text-ink-950 sm:text-4xl">
+                See the whole deal, start to payout, in one minute
+              </h2>
+              <p className="mt-4 max-w-md leading-relaxed text-ink-600">
+                Five scenes — posting, funding, delivery, release, payout — animated exactly as they
+                happen in the product. No sign-up, no sound required, and every control works with
+                keyboard and reduced-motion settings too.
+              </p>
+              <ul className="mt-6 space-y-3">
+                {[
+                  "Funds locked before work starts — never a leap of faith",
+                  "Humans resolve disputes; bots never touch your money",
+                  "A double-entry ledger records every cent, forever",
+                ].map((point, i) => (
+                  <Reveal key={point} delay={150 + i * 120}>
+                    <li className="flex items-start gap-3 text-sm text-ink-700">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 text-[10px] font-black text-white">
+                        ✓
+                      </span>
+                      {point}
+                    </li>
+                  </Reveal>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
+          <Reveal delay={150}>
+            <TourPlayer />
+          </Reveal>
         </div>
       </section>
 
       {/* ------------------------------------------------- featured projects */}
-      <section className="border-y border-ink-100 bg-white py-14">
-        <div className="container-page">
+      <section className="container-page py-20">
+        <Reveal>
           <SectionHeading
+            eyebrow="Fresh off the wire"
             title="Work posted this week"
             action={
               <Link href="/projects" className="link text-sm">
-                See {stats.projects.open} open projects →
+                See all {stats.projects.open} open projects →
               </Link>
             }
           />
-          <div className="grid gap-4 md:grid-cols-3">
-            {projects.items.map((project) => (
+        </Reveal>
+        <div className="grid gap-5 md:grid-cols-3">
+          {projects.items.map((project, i) => (
+            <Reveal key={project.id} delay={i * 120}>
               <Link
-                key={project.id}
                 href={`/projects/${project.id}`}
-                className="card group flex flex-col p-5"
+                className="card card-hover group flex h-full flex-col p-5"
               >
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <StatusBadge status={project.status} />
-                  <span className="text-sm font-semibold text-ink-900">
+                  <span className="text-sm font-bold text-brand-700">
                     {formatBudget(
                       project.budgetMinCents,
                       project.budgetMaxCents,
@@ -157,7 +182,7 @@ export default async function HomePage() {
                     )}
                   </span>
                 </div>
-                <h3 className="font-semibold text-ink-900 group-hover:text-brand-700">
+                <h3 className="font-bold text-ink-950 transition-colors group-hover:text-brand-700">
                   {project.title}
                 </h3>
                 <p className="mt-2 line-clamp-3 flex-1 text-sm text-ink-500">
@@ -168,99 +193,204 @@ export default async function HomePage() {
                   <span>{project.categoryName ?? "General"}</span>
                 </div>
               </Link>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------ featured freelancers */}
+      <section className="border-y border-ink-200/60 bg-white py-20">
+        <div className="container-page">
+          <Reveal>
+            <SectionHeading
+              eyebrow="Vetted specialists"
+              title="Top-rated this quarter"
+              action={
+                <Link href="/freelancers" className="link text-sm">
+                  Browse the directory →
+                </Link>
+              }
+            />
+          </Reveal>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {freelancers.items.map((f, i) => (
+              <Reveal key={f.profileId} delay={i * 110}>
+                <Link
+                  href={`/freelancers/${f.profileId}`}
+                  className="card card-hover group block h-full p-5"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar name={f.name} id={f.userId} />
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-ink-950 transition-colors group-hover:text-brand-700">
+                        {f.name}
+                      </p>
+                      <Stars rating={f.ratingAvg} count={f.ratingCount} />
+                    </div>
+                  </div>
+                  <p className="mt-3 line-clamp-2 min-h-10 text-sm text-ink-600">
+                    {f.headline ?? "Independent specialist"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {f.skills.slice(0, 3).map((skill) => (
+                      <Badge key={skill}>{skill}</Badge>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3 text-sm">
+                    <span className="font-bold text-ink-950">
+                      {f.hourlyRateCents != null
+                        ? `${formatMoneyCompact(f.hourlyRateCents)}/hr`
+                        : "Rate on request"}
+                    </span>
+                    <span className="text-xs text-ink-400">{f.completedContracts} contracts</span>
+                  </div>
+                </Link>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ------------------------------------------------ featured freelancers */}
-      <section className="container-page py-14">
-        <SectionHeading
-          title="Top-rated specialists"
-          action={
-            <Link href="/freelancers" className="link text-sm">
-              Browse the directory →
-            </Link>
-          }
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {freelancers.items.map((f) => (
-            <Link key={f.profileId} href={`/freelancers/${f.profileId}`} className="card group p-5">
-              <div className="flex items-center gap-3">
-                <Avatar name={f.name} id={f.userId} />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-ink-900 group-hover:text-brand-700">
-                    {f.name}
-                  </p>
-                  <Stars rating={f.ratingAvg} count={f.ratingCount} />
+      {/* ------------------------------------------------------- testimonials */}
+      <section className="container-page noise relative py-20">
+        <Reveal>
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="eyebrow">Word on the street</p>
+            <h2 className="mt-3 text-balance font-display text-3xl font-black tracking-tight text-ink-950 sm:text-4xl">
+              Clients sleep better. Freelancers eat better.
+            </h2>
+          </div>
+        </Reveal>
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
+          {[
+            {
+              quote:
+                "I funded the whole design system milestone and never thought about the money again. Approval day, one click, done.",
+              name: "Amara Ochieng",
+              role: "Head of Product · Northwind Studio",
+              seed: "amara-t",
+            },
+            {
+              quote:
+                "Escrow means I start work on day one. Zero invoicing anxiety — the ledger shows every cent, and the payout took minutes.",
+              name: "Lena Kowalska",
+              role: "Mobile engineer · 5.0 across 23 contracts",
+              seed: "lena-t",
+            },
+            {
+              quote:
+                "We moved three agencies worth of work here. The fee is honest, the disputes are handled by humans, and the audit trail makes finance happy.",
+              name: "Priya Raman",
+              role: "Operations Director · Lumen Health",
+              seed: "priya-t",
+            },
+          ].map((t, i) => (
+            <Reveal key={t.name} delay={i * 130}>
+              <figure className="card card-hover relative h-full p-6">
+                <Quote size={28} className="text-amber-400" aria-hidden fill="currentColor" />
+                <blockquote className="mt-3 text-sm leading-relaxed text-ink-700">
+                  &ldquo;{t.quote}&rdquo;
+                </blockquote>
+                <figcaption className="mt-5 flex items-center gap-3 border-t border-ink-100 pt-4">
+                  <Avatar name={t.name} id={t.seed} />
+                  <div>
+                    <p className="text-sm font-bold text-ink-950">{t.name}</p>
+                    <p className="text-xs text-ink-500">{t.role}</p>
+                  </div>
+                </figcaption>
+                <div className="absolute right-5 top-5">
+                  <Stars rating={5} size={12} />
                 </div>
-              </div>
-              <p className="mt-3 line-clamp-2 min-h-10 text-sm text-ink-600">
-                {f.headline ?? "Independent specialist"}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {f.skills.slice(0, 3).map((skill) => (
-                  <Badge key={skill}>{skill}</Badge>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3 text-sm">
-                <span className="font-semibold text-ink-900">
-                  {f.hourlyRateCents != null
-                    ? `${formatMoneyCompact(f.hourlyRateCents)}/hr`
-                    : "Rate on request"}
-                </span>
-                <span className="text-xs text-ink-400">{f.completedContracts} contracts</span>
-              </div>
-            </Link>
+              </figure>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* --------------------------------------------------------------- CTA */}
-      <section className="container-page pb-20">
-        <div className="card overflow-hidden bg-brand-950 p-10 text-white sm:p-14">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl font-bold">Serious work deserves protected money.</h2>
-            <p className="mt-3 text-brand-100">
-              Free to join. Free to post. The 10% fee only applies when escrow is released — after
-              you approve the delivery, never before.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/register" className="btn bg-white text-brand-950 hover:bg-brand-50">
-                Create your account
-                <ArrowRight size={16} />
-              </Link>
-              <Link
-                href="/docs/architecture"
-                className="btn border border-brand-400 text-white hover:bg-brand-900"
-              >
-                <Star size={16} />
-                See how it&apos;s built
-              </Link>
+      <section className="container-page pb-24">
+        <Reveal>
+          <div className="noise relative overflow-hidden rounded-3xl bg-brand-950 p-10 text-white sm:p-16">
+            <div className="aurora-blob -left-20 -top-24 h-80 w-80 animate-aurora bg-brand-500/40" />
+            <div className="aurora-blob -bottom-24 -right-16 h-80 w-80 animate-aurora bg-amber-400/25 [animation-delay:-8s]" />
+            <div className="grid-pattern absolute inset-0 opacity-30" />
+            <div className="relative max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">
+                Free to join · free to post
+              </p>
+              <h2 className="mt-4 text-balance font-display text-3xl font-black tracking-tight sm:text-5xl">
+                <TypeWriter
+                  phrases={["Serious work,", "serious money,", "protected by escrow."]}
+                  typeMs={55}
+                />
+              </h2>
+              <p className="mt-4 max-w-xl leading-relaxed text-brand-100">
+                The 10% fee applies only when escrow is released — after delivery is approved, never
+                before. Everything else is free: posting, proposals, messaging, dispute support.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/register" className="btn-gold btn-lg">
+                  Create your account
+                  <ArrowRight size={18} />
+                </Link>
+                <Link
+                  href="/docs/architecture"
+                  className="btn border border-brand-400/60 text-white hover:border-amber-300 hover:bg-brand-900"
+                >
+                  <Star size={16} />
+                  See how it&apos;s built
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
     </main>
   );
 }
 
-function HeroStat(props: { label: string; value: string }) {
+function SectionHeading(props: { eyebrow?: string; title: string; action?: React.ReactNode }) {
   return (
-    <div>
-      <dd className="text-2xl font-bold text-ink-950">{props.value}</dd>
-      <dt className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-500">
-        {props.label}
-      </dt>
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        {props.eyebrow ? <p className="eyebrow">{props.eyebrow}</p> : null}
+        <h2 className="mt-2 font-display text-2xl font-black tracking-tight text-ink-950 sm:text-3xl">
+          {props.title}
+        </h2>
+      </div>
+      {props.action}
     </div>
   );
 }
 
-function SectionHeading(props: { title: string; action?: React.ReactNode }) {
+function MarqueeRow({
+  categories,
+  offset,
+  reverse = false,
+}: {
+  categories: Array<{ id: string; name: string; description: string | null }>;
+  offset: number;
+  reverse?: boolean;
+}) {
+  const items = [...categories, ...categories];
   return (
-    <div className="mb-6 flex items-end justify-between">
-      <h2 className="text-xl font-bold tracking-tight text-ink-950 sm:text-2xl">{props.title}</h2>
-      {props.action}
+    <div className="relative overflow-hidden py-2 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+      <div
+        className={`marquee-track ${reverse ? "reverse" : ""} flex w-max items-center gap-3 px-2`}
+        style={{ ["--marquee-duration" as string]: `${reverse ? 46 : 34}s` }}
+      >
+        {items.map((category, i) => (
+          <Link
+            key={`${category.id}-${i}`}
+            href={`/projects?categoryId=${category.id}`}
+            aria-hidden={i >= categories.length}
+            tabIndex={i >= categories.length ? -1 : 0}
+            className="whitespace-nowrap rounded-full border border-ink-200 bg-ink-50/60 px-5 py-2 text-sm font-semibold text-ink-700 transition-all hover:-translate-y-0.5 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800 hover:shadow-pop"
+          >
+            {offset === 0 ? category.name : `✦ ${category.name}`}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
